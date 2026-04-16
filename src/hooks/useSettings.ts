@@ -5,7 +5,7 @@ const DEFAULT_SETTINGS: ReaderSettings = {
   fontSize: 18,
   lineHeight: 1.9,
   fontFamily: '"Noto Serif SC", "Source Han Serif SC", serif',
-  contentWidth: 100,
+  contentWidth: 65,
   theme: 'light', // 默认浅色主题
 };
 

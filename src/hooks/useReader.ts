@@ -94,13 +94,12 @@ export function useReader() {
         doc.head?.appendChild(style);
       }
 
-      // Apply font-family override to all elements in every new chapter
+      // Apply base font-family on body for every new chapter.
+      // We intentionally avoid !important on child elements so that
+      // the EPUB's own specific font styles (e.g. poetry blocks) are preserved.
       if (fontSettingsRef.current) {
         const { fontFamily } = fontSettingsRef.current;
-        contents.addStylesheetCss(
-          `body, p, div, span, h1, h2, h3, h4, h5, h6, li, td, th, em, strong, b, i, a, blockquote { font-family: ${fontFamily} !important; }`,
-          'epub-reader-font-override'
-        );
+        contents.css('font-family', fontFamily, false);
       }
     });
 
@@ -216,17 +215,11 @@ export function useReader() {
       // Store settings for future contents (applied via hooks.content.register)
       fontSettingsRef.current = settings;
 
-      // Apply global font-family override to all current contents.
-      // themes.font() only sets font-family on the body element via inline style,
-      // which cannot override font-family explicitly set on child elements inside
-      // the EPUB. We inject a stylesheet with !important to force the font on
-      // all common elements.
+      // Apply base font-family on body for all current contents.
+      // This lets child elements with explicit font-family keep their own styles.
       const contents = renditionRef.current.getContents() as unknown as Contents[];
       contents.forEach((content: Contents) => {
-        content.addStylesheetCss(
-          `body, p, div, span, h1, h2, h3, h4, h5, h6, li, td, th, em, strong, b, i, a, blockquote { font-family: ${settings.fontFamily} !important; }`,
-          'epub-reader-font-override'
-        );
+        content.css('font-family', settings.fontFamily, false);
       });
     }
   }, []);
