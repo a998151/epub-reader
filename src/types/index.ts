@@ -16,6 +16,7 @@ export interface ReaderSettings {
   fontSize: number;
   lineHeight: number;
   fontFamily: string;
+  contentWidth: number;
   theme: 'dark' | 'light' | 'sepia' | 'green' | 'darkGreen' | 'darkBlue';
 }
 

@@ -5,6 +5,7 @@ const DEFAULT_SETTINGS: ReaderSettings = {
   fontSize: 18,
   lineHeight: 1.9,
   fontFamily: '"Noto Serif SC", "Source Han Serif SC", serif',
+  contentWidth: 100,
   theme: 'light', // 默认浅色主题
 };
 
@@ -63,6 +64,10 @@ export function useSettings() {
 
   const setFontFamily = useCallback((family: string) => {
     saveSettings({ fontFamily: family });
+  }, [saveSettings]);
+
+  const setContentWidth = useCallback((width: number) => {
+    saveSettings({ contentWidth: Math.max(50, Math.min(100, width)) });
   }, [saveSettings]);
 
   const setTheme = useCallback((theme: ReaderSettings['theme']) => {
@@ -192,6 +197,7 @@ export function useSettings() {
     setFontSize,
     setLineHeight,
     setFontFamily,
+    setContentWidth,
     setTheme,
     addBookmark,
     removeBookmark,

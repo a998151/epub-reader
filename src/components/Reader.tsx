@@ -18,6 +18,7 @@ interface ReaderProps {
   };
   onFileSelect: (file: File) => void;
   chapterTitle?: string;
+  contentWidth?: number;
 }
 
 export function Reader({
@@ -29,6 +30,7 @@ export function Reader({
   themeColors,
   onFileSelect,
   chapterTitle,
+  contentWidth = 100,
 }: ReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -246,7 +248,8 @@ export function Reader({
       >
         <div 
           ref={containerRef}
-          className="w-full h-full max-w-5xl mx-auto px-4 md:px-8 lg:px-16"
+          className="h-full mx-auto px-4 md:px-8 lg:px-16"
+          style={{ width: `${contentWidth}%` }}
         />
       </div>
 

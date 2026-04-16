@@ -52,6 +52,7 @@ function App() {
     setFontSize,
     setLineHeight,
     setFontFamily,
+    setContentWidth,
     setTheme,
     addBookmark,
     removeBookmark,
@@ -354,9 +355,11 @@ function App() {
         fontSize={settings.fontSize}
         lineHeight={settings.lineHeight}
         fontFamily={settings.fontFamily}
+        contentWidth={settings.contentWidth}
         onFontSizeChange={setFontSize}
         onLineHeightChange={setLineHeight}
         onFontFamilyChange={setFontFamily}
+        onContentWidthChange={setContentWidth}
         themeColors={themeColors}
       />
 
@@ -390,6 +393,7 @@ function App() {
             themeColors={themeColors}
             onFileSelect={handleFileSelect}
             chapterTitle={currentChapterTitle}
+            contentWidth={settings.contentWidth}
           />
           {isLoaded && <ProgressBar progress={progress} themeColors={themeColors} />}
         </>

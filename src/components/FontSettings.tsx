@@ -8,9 +8,11 @@ interface FontSettingsProps {
   fontSize: number;
   lineHeight: number;
   fontFamily: string;
+  contentWidth: number;
   onFontSizeChange: (size: number) => void;
   onLineHeightChange: (height: number) => void;
   onFontFamilyChange: (family: string) => void;
+  onContentWidthChange: (width: number) => void;
   themeColors: {
     background: string;
     text: string;
@@ -37,9 +39,11 @@ export function FontSettings({
   fontSize,
   lineHeight,
   fontFamily,
+  contentWidth,
   onFontSizeChange,
   onLineHeightChange,
   onFontFamilyChange,
+  onContentWidthChange,
   themeColors,
 }: FontSettingsProps) {
   return (
@@ -187,6 +191,31 @@ export function FontSettings({
                   min={1.2}
                   max={2.5}
                   step={0.1}
+                />
+              </div>
+
+              {/* Content Width */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span 
+                    className="text-sm"
+                    style={{ color: themeColors.icon }}
+                  >
+                    内容宽度
+                  </span>
+                  <span 
+                    className="text-sm font-medium"
+                    style={{ color: themeColors.text }}
+                  >
+                    {contentWidth}%
+                  </span>
+                </div>
+                <Slider
+                  value={[contentWidth]}
+                  onValueChange={([value]) => onContentWidthChange(value)}
+                  min={50}
+                  max={100}
+                  step={5}
                 />
               </div>
 
