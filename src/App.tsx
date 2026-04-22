@@ -239,13 +239,19 @@ function App() {
     }
   }, [renderTo, display, applyTheme, applyFontSettings, settings, themeColors, generateLocations]);
 
-  // Apply settings when they change (but not on initial render)
+  // Apply theme when it changes (but not on initial render)
   useEffect(() => {
     if (isLoaded && hasRendered.current) {
       applyTheme(themeColors);
+    }
+  }, [settings.theme]);
+
+  // Apply font settings when they change (but not on initial render)
+  useEffect(() => {
+    if (isLoaded && hasRendered.current) {
       applyFontSettings(settings);
     }
-  }, [settings.fontSize, settings.lineHeight, settings.fontFamily, settings.theme]);
+  }, [settings.fontSize, settings.lineHeight, settings.fontFamily]);
 
   // Auto-save reading position when location changes
   useEffect(() => {

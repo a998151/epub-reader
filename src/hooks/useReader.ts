@@ -94,11 +94,16 @@ export function useReader() {
         doc.head?.appendChild(style);
       }
 
-      // Apply font-family with !important so it overrides any font declarations
-      // already defined inside the EPUB's own CSS.
+      // Apply font-family via CSS rule that covers all child elements,
+      // not just <body>, because EPUB CSS often sets font-family on <p>/<span> etc.
       if (fontSettingsRef.current) {
         const { fontFamily } = fontSettingsRef.current;
-        contents.css('font-family', fontFamily, true);
+        const existingFontStyle = doc.getElementById('epub-font-override');
+        if (existingFontStyle) existingFontStyle.remove();
+        const fontStyle = doc.createElement('style');
+        fontStyle.id = 'epub-font-override';
+        fontStyle.textContent = `body, body * { font-family: ${fontFamily} !important; }`;
+        doc.head?.appendChild(fontStyle);
       }
     });
 
@@ -210,17 +215,22 @@ export function useReader() {
     if (renditionRef.current) {
       renditionRef.current.themes.fontSize(`${settings.fontSize}px`);
       renditionRef.current.themes.override('line-height', `${settings.lineHeight}`, true);
-      // 用 themes.override 覆写 font-family，即使 getContents() 为空也能生效
-      // epubjs 会把这条规则注入到当前及后续每个 chapter iframe 的主题样式中
-      renditionRef.current.themes.override('font-family', settings.fontFamily, true);
-
       // Store settings for future contents (applied via hooks.content.register)
       fontSettingsRef.current = settings;
 
-      // 对当前已渲染的 contents 也直接注入，确保立即生效
+      // Inject a CSS rule covering all child elements, not just <body>,
+      // because EPUB CSS often sets font-family on <p>/<span> etc.
       const contents = renditionRef.current.getContents() as unknown as Contents[];
       contents.forEach((content: Contents) => {
-        content.css('font-family', settings.fontFamily, true);
+        const doc = content.document;
+        if (doc) {
+          const existing = doc.getElementById('epub-font-override');
+          if (existing) existing.remove();
+          const style = doc.createElement('style');
+          style.id = 'epub-font-override';
+          style.textContent = `body, body * { font-family: ${settings.fontFamily} !important; }`;
+          doc.head?.appendChild(style);
+        }
       });
     }
   }, []);
