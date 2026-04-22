@@ -34,5 +34,4 @@ export interface ReadingHistory {
   lastReadAt: number;
   progress: number;
   cfi?: string; // 保存阅读位置
-  fileData?: ArrayBuffer;
 }

@@ -94,12 +94,11 @@ export function useReader() {
         doc.head?.appendChild(style);
       }
 
-      // Apply base font-family on body for every new chapter.
-      // We intentionally avoid !important on child elements so that
-      // the EPUB's own specific font styles (e.g. poetry blocks) are preserved.
+      // Apply font-family with !important so it overrides any font declarations
+      // already defined inside the EPUB's own CSS.
       if (fontSettingsRef.current) {
         const { fontFamily } = fontSettingsRef.current;
-        contents.css('font-family', fontFamily, false);
+        contents.css('font-family', fontFamily, true);
       }
     });
 
@@ -211,15 +210,17 @@ export function useReader() {
     if (renditionRef.current) {
       renditionRef.current.themes.fontSize(`${settings.fontSize}px`);
       renditionRef.current.themes.override('line-height', `${settings.lineHeight}`, true);
+      // 用 themes.override 覆写 font-family，即使 getContents() 为空也能生效
+      // epubjs 会把这条规则注入到当前及后续每个 chapter iframe 的主题样式中
+      renditionRef.current.themes.override('font-family', settings.fontFamily, true);
 
       // Store settings for future contents (applied via hooks.content.register)
       fontSettingsRef.current = settings;
 
-      // Apply base font-family on body for all current contents.
-      // This lets child elements with explicit font-family keep their own styles.
+      // 对当前已渲染的 contents 也直接注入，确保立即生效
       const contents = renditionRef.current.getContents() as unknown as Contents[];
       contents.forEach((content: Contents) => {
-        content.css('font-family', settings.fontFamily, false);
+        content.css('font-family', settings.fontFamily, true);
       });
     }
   }, []);

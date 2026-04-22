@@ -1,3 +1,6 @@
+/* Noto Serif SC font import — must be first */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -76,9 +79,6 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
-
-/* Noto Serif SC font import */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap');
 
 /* Custom local fonts */
 @font-face {

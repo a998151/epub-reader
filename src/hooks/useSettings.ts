@@ -9,6 +9,14 @@ const DEFAULT_SETTINGS: ReaderSettings = {
   theme: 'light', // 默认浅色主题
 };
 
+function safeSetItem(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.error(`localStorage 写入失败 (${key}):`, e);
+  }
+}
+
 export function useSettings() {
   const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
@@ -48,7 +56,7 @@ export function useSettings() {
   const saveSettings = useCallback((newSettings: Partial<ReaderSettings>) => {
     setSettings((prev) => {
       const updated = { ...prev, ...newSettings };
-      localStorage.setItem('epub-reader-settings', JSON.stringify(updated));
+      safeSetItem('epub-reader-settings', JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -79,7 +87,7 @@ export function useSettings() {
     setBookmarks((prev) => {
       const newBookmark: Bookmark = { cfi, title, createdAt: Date.now() };
       const updated = [...prev, newBookmark];
-      localStorage.setItem('epub-reader-bookmarks', JSON.stringify(updated));
+      safeSetItem('epub-reader-bookmarks', JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -87,7 +95,7 @@ export function useSettings() {
   const removeBookmark = useCallback((cfi: string) => {
     setBookmarks((prev) => {
       const updated = prev.filter((b) => b.cfi !== cfi);
-      localStorage.setItem('epub-reader-bookmarks', JSON.stringify(updated));
+      safeSetItem('epub-reader-bookmarks', JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -105,7 +113,7 @@ export function useSettings() {
       const updated = [book, ...filtered];
       // Keep only last 20 books
       const limited = updated.slice(0, 20);
-      localStorage.setItem('epub-reader-history', JSON.stringify(limited));
+      safeSetItem('epub-reader-history', JSON.stringify(limited));
       return limited;
     });
   }, []);
@@ -117,7 +125,7 @@ export function useSettings() {
           ? { ...book, progress, lastReadAt: Date.now(), ...(cfi && { cfi }) }
           : book
       );
-      localStorage.setItem('epub-reader-history', JSON.stringify(updated));
+      safeSetItem('epub-reader-history', JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -125,7 +133,7 @@ export function useSettings() {
   const removeFromHistory = useCallback((id: string) => {
     setReadingHistory((prev) => {
       const updated = prev.filter((b) => b.id !== id);
-      localStorage.setItem('epub-reader-history', JSON.stringify(updated));
+      safeSetItem('epub-reader-history', JSON.stringify(updated));
       return updated;
     });
   }, []);

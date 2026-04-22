@@ -9,6 +9,7 @@ import { ProgressBar } from '@/components/ProgressBar';
 import { Home } from '@/components/Home';
 import { useReader } from '@/hooks/useReader';
 import { useSettings } from '@/hooks/useSettings';
+import { saveBookData, getBookData, deleteBookData } from '@/utils/indexedDB';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import type { ReadingHistory } from '@/types';
@@ -136,7 +137,12 @@ function App() {
           cover: coverUrl,
           lastReadAt: Date.now(),
           progress: 0,
-          fileData: arrayBuffer,
+        });
+
+        // 文件数据存入 IndexedDB
+        saveBookData(bookId, arrayBuffer).catch((e) => {
+          console.error('IndexedDB 保存失败:', e);
+          toast.error('书籍数据保存失败', { description: '请检查浏览器存储空间' });
         });
         
         setCurrentView('reader');
@@ -157,17 +163,18 @@ function App() {
       hasRendered.current = false;
       initialCfi.current = historyBook.cfi; // 保存阅读位置
       setCurrentBookId(historyBook.id);
-      
-      if (historyBook.fileData) {
-        await loadBook(historyBook.fileData);
+
+      const fileData = await getBookData(historyBook.id);
+      if (fileData) {
+        await loadBook(fileData);
         setCurrentView('reader');
-        
+
         // Update last read time
         addToHistory({
           ...historyBook,
           lastReadAt: Date.now(),
         });
-        
+
         toast.success('继续阅读', {
           description: historyBook.title,
         });
@@ -186,6 +193,7 @@ function App() {
   // Handle removing book from history
   const handleRemoveBook = useCallback((id: string) => {
     removeFromHistory(id);
+    deleteBookData(id).catch((e) => console.error('IndexedDB 删除失败:', e));
     toast.success('已删除阅读记录');
   }, [removeFromHistory]);
 
