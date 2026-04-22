@@ -102,7 +102,7 @@ export function useReader() {
         if (existingFontStyle) existingFontStyle.remove();
         const fontStyle = doc.createElement('style');
         fontStyle.id = 'epub-font-override';
-        fontStyle.textContent = `body, body * { font-family: ${fontFamily} !important; }`;
+        fontStyle.textContent = `body, body * { font-family: ${fontFamily}; }`;
         doc.head?.appendChild(fontStyle);
       }
     });
@@ -228,7 +228,7 @@ export function useReader() {
           if (existing) existing.remove();
           const style = doc.createElement('style');
           style.id = 'epub-font-override';
-          style.textContent = `body, body * { font-family: ${settings.fontFamily} !important; }`;
+          style.textContent = `body, body * { font-family: ${settings.fontFamily}; }`;
           doc.head?.appendChild(style);
         }
       });
