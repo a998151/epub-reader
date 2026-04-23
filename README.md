@@ -1,24 +1,42 @@
 # EPUB Reader
 
-基于 **React + TypeScript + Vite + Electron** 的跨平台 EPUB 阅读器。
+基于 **React + TypeScript + Vite + Tauri 2（Rust）** 的 Windows 桌面 EPUB 阅读器。
+
+## 界面展示
+
+| | |
+|:---:|:---:|
+| ![首页](public/images/1.png) | ![书架](public/images/2.png) |
+| ![阅读器](public/images/3.png) | ![字体设置](public/images/4.png) |
+
+![主题设置](public/images/5.png)
+
+---
 
 ## 功能特性
 
-- 📖 支持本地 EPUB 文件上传与拖拽打开
-- 📝 目录导航与章节跳转
-- 🔖 书签管理
-- 📚 阅读历史（书架）
-- ⚙️ 阅读设置：字体、字号、行间距、内容宽度、主题
-- 🌗 多种主题：浅色、深色、护眼绿、深蓝等
-- 🖥️ Windows 桌面应用安装包
+- 支持本地 EPUB 文件通过系统文件对话框或拖拽打开
+- 目录导航与章节跳转
+- 书签管理
+- 阅读历史（书架），书籍文件持久化存储于系统 AppData 目录
+- 阅读设置：字体、字号、行间距、内容宽度、主题
+- 多种主题：浅色、深色、护眼绿、暗绿、深蓝、米黄
+- 自定义中文字体（霞鹜文楷、朱雀仿宋、方正细金陵、方正颜宋）
 
 ## 技术栈
 
 - React 19 + TypeScript 5.9
 - Vite 7
+- Tauri 2（Rust 后端）
 - Tailwind CSS + shadcn/ui
-- epubjs
-- Electron + electron-builder
+- epubjs（EPUB 解析与渲染）
+- Framer Motion
+
+## 开发环境要求
+
+- Node.js 20+
+- Rust（通过 [rustup](https://rustup.rs/) 安装）
+- Windows（当前仅支持 Windows）
 
 ## 开发命令
 
@@ -26,50 +44,48 @@
 # 安装依赖
 npm install
 
-# 启动开发服务器
-npm run dev
+# 启动 Tauri 开发模式（同时启动前端 + Rust 后端，打开原生窗口）
+npm run tauri:dev
 
-# 类型检查并构建前端（输出到 dist/）
+# 构建生产安装包
+npm run tauri:build
+
+# 仅构建前端（不启动 Tauri）
 npm run build
 
-# 预览生产构建
-npm run preview
-
-# 运行 ESLint 检查
+# ESLint 检查
 npm run lint
 ```
 
-## 打包构建
-
-### 构建 Windows 安装包
+## 构建输出
 
 ```bash
-npm run dist
+npm run tauri:build
 ```
 
-构建完成后，输出文件位于：
+构建完成后，安装包位于：
 
-- `release/EPUB Reader Setup 0.0.0.exe` — Windows 安装包（双击安装）
-- `release/win-unpacked/EPUB Reader.exe` — 免安装版（可直接运行）
-
-### 仅构建前端静态文件
-
-```bash
-npm run build
+```
+src-tauri/target/release/bundle/
+├── nsis/    ← .exe 安装包（推荐）
+└── msi/     ← .msi 安装包
 ```
 
-构建产物输出到 `dist/` 目录，可部署到任意静态托管服务。
+## 项目结构
 
-## 自定义应用图标
-
-如需自定义桌面应用图标，修改 `package.json` 中的 `build` 配置：
-
-```json
-"build": {
-  "win": {
-    "icon": "path/to/icon.ico"
-  }
-}
 ```
-
-然后重新运行 `npm run dist`。
+├── src/                  # React 前端
+│   ├── components/       # UI 组件
+│   ├── hooks/            # useReader、useSettings
+│   ├── types/            # TypeScript 类型定义
+│   └── App.tsx           # 根组件
+├── src-tauri/            # Rust 后端
+│   ├── src/
+│   │   ├── commands.rs   # Tauri 命令（文件读写、设置持久化）
+│   │   ├── storage.rs    # 书籍文件存储逻辑
+│   │   ├── config.rs     # 设置/书签/历史的序列化
+│   │   └── lib.rs        # Tauri 入口
+│   ├── capabilities/     # Tauri 权限配置
+│   └── tauri.conf.json   # Tauri 应用配置
+└── public/fonts/         # 自定义中文字体（~31 MB）
+```

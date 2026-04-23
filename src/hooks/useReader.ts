@@ -13,8 +13,8 @@ export function useReader() {
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [progress, setProgress] = useState(0);
 
-  // Load EPUB file from asset URL (converted from file path via convertFileSrc)
-  const loadBook = useCallback(async (url: string) => {
+  // Load EPUB from a URL string or ArrayBuffer (ArrayBuffer avoids fetch in WebView2)
+  const loadBook = useCallback(async (input: string | ArrayBuffer) => {
     setIsLoaded(false);
 
     // Clean up previous book
@@ -28,8 +28,8 @@ export function useReader() {
     }
 
     try {
-      // Create new book
-      const book = ePub(url);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const book = ePub(input as any);
       bookRef.current = book;
 
       // Load metadata

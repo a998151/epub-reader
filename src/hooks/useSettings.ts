@@ -21,13 +21,18 @@ export function useSettings() {
     async function loadData() {
       try {
         const [savedSettings, savedBookmarks, savedHistory] = await Promise.all([
-          invoke<RustReaderSettings>('load_settings'),
-          invoke<RustBookmark[]>('load_bookmarks'),
-          invoke<RustReadingHistory[]>('load_history'),
+          invoke<ReaderSettings>('load_settings'),
+          invoke<Bookmark[]>('load_bookmarks'),
+          invoke<Array<ReadingHistory & { author: string | null; cover: string | null; cfi: string | null }>>('load_history'),
         ]);
-        setSettings({ ...DEFAULT_SETTINGS, ...mapRustSettings(savedSettings) });
-        setBookmarks(savedBookmarks.map(mapRustBookmark));
-        setReadingHistory(savedHistory.map(mapRustHistory));
+        setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
+        setBookmarks(savedBookmarks);
+        setReadingHistory(savedHistory.map(h => ({
+          ...h,
+          author: h.author ?? undefined,
+          cover: h.cover ?? undefined,
+          cfi: h.cfi ?? undefined,
+        })));
       } catch {
         // Rust backend not available yet (dev mode without Tauri) or first launch
         // Try migrating from localStorage
@@ -51,15 +56,21 @@ export function useSettings() {
 
   // Persist settings to Rust backend
   const persistSettings = useCallback((updated: ReaderSettings) => {
-    invoke('save_settings', { settings: mapSettingsToRust(updated) }).catch(console.error);
+    invoke('save_settings', { settings: updated }).catch(console.error);
   }, []);
 
   const persistBookmarks = useCallback((updated: Bookmark[]) => {
-    invoke('save_bookmarks', { bookmarks: updated.map(mapBookmarkToRust) }).catch(console.error);
+    invoke('save_bookmarks', { bookmarks: updated }).catch(console.error);
   }, []);
 
   const persistHistory = useCallback((updated: ReadingHistory[]) => {
-    invoke('save_history', { history: updated.map(mapHistoryToRust) }).catch(console.error);
+    const serializable = updated.map(h => ({
+      ...h,
+      author: h.author ?? null,
+      cover: h.cover ?? null,
+      cfi: h.cfi ?? null,
+    }));
+    invoke('save_history', { history: serializable }).catch(console.error);
   }, []);
 
   // Save settings
@@ -187,51 +198,3 @@ export function useSettings() {
   };
 }
 
-// Bridge types between TS and Rust (snake_case <-> camelCase)
-interface RustReaderSettings {
-  font_size: number;
-  line_height: number;
-  font_family: string;
-  content_width: number;
-  theme: string;
-}
-
-interface RustBookmark {
-  cfi: string;
-  title: string;
-  created_at: number;
-}
-
-interface RustReadingHistory {
-  id: string;
-  title: string;
-  author: string | null;
-  cover: string | null;
-  last_read_at: number;
-  progress: number;
-  cfi: string | null;
-}
-
-function mapSettingsToRust(s: ReaderSettings): RustReaderSettings {
-  return { font_size: s.fontSize, line_height: s.lineHeight, font_family: s.fontFamily, content_width: s.contentWidth, theme: s.theme };
-}
-
-function mapRustSettings(s: RustReaderSettings): ReaderSettings {
-  return { fontSize: s.font_size, lineHeight: s.line_height, fontFamily: s.font_family, contentWidth: s.content_width, theme: s.theme as ReaderSettings['theme'] };
-}
-
-function mapBookmarkToRust(b: Bookmark): RustBookmark {
-  return { cfi: b.cfi, title: b.title, created_at: b.createdAt };
-}
-
-function mapRustBookmark(b: RustBookmark): Bookmark {
-  return { cfi: b.cfi, title: b.title, createdAt: b.created_at };
-}
-
-function mapHistoryToRust(h: ReadingHistory): RustReadingHistory {
-  return { id: h.id, title: h.title, author: h.author ?? null, cover: h.cover ?? null, last_read_at: h.lastReadAt, progress: h.progress, cfi: h.cfi ?? null };
-}
-
-function mapRustHistory(h: RustReadingHistory): ReadingHistory {
-  return { id: h.id, title: h.title, author: h.author ?? undefined, cover: h.cover ?? undefined, lastReadAt: h.last_read_at, progress: h.progress, cfi: h.cfi ?? undefined };
-}

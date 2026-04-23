@@ -100,8 +100,9 @@ export function ThemeSettings({
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.95, x: 20 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-            className="fixed right-20 top-1/2 -translate-y-1/2 w-[240px] rounded-xl z-[120] overflow-hidden"
+            className="fixed right-20 top-1/2 w-[240px] rounded-xl z-[120] overflow-hidden"
             style={{
+              y: '-50%',
               backgroundColor: themeColors.secondaryBg,
               boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
             }}

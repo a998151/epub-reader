@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { TopNav } from '@/components/TopNav';
 import { Toolbar } from '@/components/Toolbar';
@@ -20,6 +19,26 @@ import './App.css';
 
 type View = 'home' | 'reader';
 type HomeTab = 'home' | 'bookshelf';
+
+// Convert a blob URL to a small JPEG data URL so covers survive session restarts
+function coverBlobToDataUrl(blobUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 160;
+      const scale = Math.min(MAX / img.naturalWidth, MAX / img.naturalHeight, 1);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('no canvas context')); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.75));
+    };
+    img.onerror = () => reject(new Error('cover load failed'));
+    img.src = blobUrl;
+  });
+}
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -70,6 +89,13 @@ function App() {
   const hasRendered = useRef(false);
   const initialCfi = useRef<string | undefined>(undefined);
 
+  const readBookData = useCallback(async (id: string): Promise<ArrayBuffer> => {
+    console.log('[readBookData] reading bytes for id:', id);
+    const bytes = await invoke<number[]>('read_book_bytes', { id });
+    console.log('[readBookData] got bytes, length:', bytes.length);
+    return new Uint8Array(bytes).buffer;
+  }, []);
+
   // Save current reading position
   const saveCurrentPosition = useCallback(() => {
     if (currentBookId) {
@@ -95,6 +121,57 @@ function App() {
     setCurrentHomeTab('bookshelf');
   }, [saveCurrentPosition]);
 
+  // Load an EPUB file from a file path
+  const loadEpubFile = useCallback(async (filePath: string) => {
+    console.log('[loadEpubFile] starting, filePath:', filePath);
+    try {
+      hasRendered.current = false;
+      const bookId = `book-${Date.now()}`;
+
+      // Save book file via Rust backend
+      console.log('[loadEpubFile] saving book file...');
+      await invoke('save_book_file', { id: bookId, sourcePath: filePath });
+
+      console.log('[loadEpubFile] creating blob url...');
+      const bookData = await readBookData(bookId);
+      console.log('[loadEpubFile] bookData ready, loading...');
+
+      const loadedBook = await loadBook(bookData);
+      if (loadedBook) {
+        setCurrentBookId(bookId);
+
+        // Read metadata directly from epubjs book object to avoid stale React state closure
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const epubMeta = (loadedBook as any).package?.metadata;
+        const title = epubMeta?.title || filePath.split(/[\\/]/).pop()?.replace('.epub', '') || 'Untitled';
+        const author: string | undefined = epubMeta?.creator;
+
+        let coverUrl: string | undefined;
+        try {
+          const blobUrl = await loadedBook.coverUrl();
+          if (blobUrl) coverUrl = await coverBlobToDataUrl(blobUrl);
+        } catch { /* no cover */ }
+
+        addToHistory({
+          id: bookId,
+          title,
+          author,
+          cover: coverUrl,
+          lastReadAt: Date.now(),
+          progress: 0,
+        });
+
+        setCurrentView('reader');
+        toast.success('书籍加载成功', { description: title });
+      }
+    } catch (err) {
+      console.error('[loadEpubFile] error:', err);
+      toast.error('加载失败', {
+        description: err instanceof Error ? err.message : '无法解析EPUB文件',
+      });
+    }
+  }, [loadBook, addToHistory, readBookData]);
+
   // Open native file dialog to select EPUB
   const handleUploadFile = useCallback(async () => {
     console.log('[handleUploadFile] starting...');
@@ -114,56 +191,6 @@ function App() {
       });
     }
   }, [loadEpubFile]);
-
-  // Load an EPUB file from a file path
-  const loadEpubFile = useCallback(async (filePath: string) => {
-    console.log('[loadEpubFile] starting, filePath:', filePath);
-    try {
-      hasRendered.current = false;
-      const bookId = `book-${Date.now()}`;
-
-      // Save book file via Rust backend
-      console.log('[loadEpubFile] saving book file...');
-      await invoke('save_book_file', { id: bookId, sourcePath: filePath });
-
-      // Convert stored path to asset URL for epubjs
-      console.log('[loadEpubFile] getting book file path...');
-      const storedPath = await invoke<string>('get_book_file_path', { id: bookId });
-      console.log('[loadEpubFile] storedPath:', storedPath);
-      const assetUrl = convertFileSrc(storedPath);
-      console.log('[loadEpubFile] assetUrl:', assetUrl);
-
-      const loadedBook = await loadBook(assetUrl);
-      if (loadedBook) {
-        setCurrentBookId(bookId);
-
-        let coverUrl: string | undefined;
-        try {
-          const cover = await loadedBook.coverUrl();
-          if (cover) coverUrl = cover;
-        } catch { /* no cover */ }
-
-        addToHistory({
-          id: bookId,
-          title: metadata.title || filePath.split(/[\\/]/).pop()?.replace('.epub', '') || 'Untitled',
-          author: metadata.author,
-          cover: coverUrl,
-          lastReadAt: Date.now(),
-          progress: 0,
-        });
-
-        setCurrentView('reader');
-        toast.success('书籍加载成功', {
-          description: metadata.title || filePath.split(/[\\/]/).pop(),
-        });
-      }
-    } catch (err) {
-      console.error('[loadEpubFile] error:', err);
-      toast.error('加载失败', {
-        description: err instanceof Error ? err.message : '无法解析EPUB文件',
-      });
-    }
-  }, [loadBook, metadata, addToHistory]);
 
   // Handle drag-drop from Tauri or browser
   const handleFileFromDrop = useCallback(async (filePath: string) => {
@@ -190,9 +217,8 @@ function App() {
       initialCfi.current = historyBook.cfi;
       setCurrentBookId(historyBook.id);
 
-      const storedPath = await invoke<string>('get_book_file_path', { id: historyBook.id });
-      const assetUrl = convertFileSrc(storedPath);
-      await loadBook(assetUrl);
+      const bookData = await readBookData(historyBook.id);
+      await loadBook(bookData);
       setCurrentView('reader');
 
       addToHistory({
@@ -206,7 +232,7 @@ function App() {
         description: err instanceof Error ? err.message : '书籍数据已丢失',
       });
     }
-  }, [loadBook, addToHistory]);
+  }, [loadBook, addToHistory, readBookData]);
 
   // Handle removing book from history
   const handleRemoveBook = useCallback((id: string) => {
