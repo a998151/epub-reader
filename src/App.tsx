@@ -1,4 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { TopNav } from '@/components/TopNav';
 import { Toolbar } from '@/components/Toolbar';
 import { TocSidebar } from '@/components/TocSidebar';
@@ -9,7 +13,6 @@ import { ProgressBar } from '@/components/ProgressBar';
 import { Home } from '@/components/Home';
 import { useReader } from '@/hooks/useReader';
 import { useSettings } from '@/hooks/useSettings';
-import { saveBookData, getBookData, deleteBookData } from '@/utils/indexedDB';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import type { ReadingHistory } from '@/types';
@@ -19,15 +22,10 @@ type View = 'home' | 'reader';
 type HomeTab = 'home' | 'bookshelf';
 
 function App() {
-  // View state
   const [currentView, setCurrentView] = useState<View>('home');
   const [currentHomeTab, setCurrentHomeTab] = useState<HomeTab>('home');
   const [currentBookId, setCurrentBookId] = useState<string | null>(null);
-  
-  // File input ref for upload
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Reader state
   const {
     book,
     isLoaded,
@@ -47,7 +45,6 @@ function App() {
     getCurrentLocation,
   } = useReader();
 
-  // Settings state
   const {
     settings,
     setFontSize,
@@ -65,7 +62,6 @@ function App() {
     getThemeColors,
   } = useSettings();
 
-  // UI state
   const [isTocOpen, setIsTocOpen] = useState(false);
   const [isFontSettingsOpen, setIsFontSettingsOpen] = useState(false);
   const [isThemeSettingsOpen, setIsThemeSettingsOpen] = useState(false);
@@ -83,109 +79,131 @@ function App() {
         const percentage = book?.locations?.percentageFromCfi(cfi) || 0;
         const progressValue = Math.round(percentage * 100);
         updateHistoryProgress(currentBookId, progressValue, cfi);
-        console.log('Saved position:', { cfi, progress: progressValue });
       }
     }
   }, [currentBookId, book, getCurrentLocation, updateHistoryProgress]);
 
-  // Navigate to home
   const goToHome = useCallback(() => {
-    // Save current position before leaving
     saveCurrentPosition();
     setCurrentView('home');
     setCurrentHomeTab('home');
   }, [saveCurrentPosition]);
 
-  // Navigate to bookshelf
   const goToBookshelf = useCallback(() => {
-    // Save current position before leaving
     saveCurrentPosition();
     setCurrentView('home');
     setCurrentHomeTab('bookshelf');
   }, [saveCurrentPosition]);
 
-  // Trigger file upload
-  const triggerUpload = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
+  // Open native file dialog to select EPUB
+  const handleUploadFile = useCallback(async () => {
+    console.log('[handleUploadFile] starting...');
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: 'EPUB', extensions: ['epub'] }],
+      });
+      console.log('[handleUploadFile] selected:', selected);
+      if (!selected) return;
+      const filePath = selected as string;
+      await loadEpubFile(filePath);
+    } catch (err) {
+      console.error('[handleUploadFile] error:', err);
+      toast.error('打开文件失败', {
+        description: err instanceof Error ? err.message : '无法选择文件',
+      });
+    }
+  }, [loadEpubFile]);
 
-  // Handle file selection
-  const handleFileSelect = useCallback(async (file: File) => {
+  // Load an EPUB file from a file path
+  const loadEpubFile = useCallback(async (filePath: string) => {
+    console.log('[loadEpubFile] starting, filePath:', filePath);
     try {
       hasRendered.current = false;
-      const arrayBuffer = await file.arrayBuffer();
-      const loadedBook = await loadBook(arrayBuffer);
-      
+      const bookId = `book-${Date.now()}`;
+
+      // Save book file via Rust backend
+      console.log('[loadEpubFile] saving book file...');
+      await invoke('save_book_file', { id: bookId, sourcePath: filePath });
+
+      // Convert stored path to asset URL for epubjs
+      console.log('[loadEpubFile] getting book file path...');
+      const storedPath = await invoke<string>('get_book_file_path', { id: bookId });
+      console.log('[loadEpubFile] storedPath:', storedPath);
+      const assetUrl = convertFileSrc(storedPath);
+      console.log('[loadEpubFile] assetUrl:', assetUrl);
+
+      const loadedBook = await loadBook(assetUrl);
       if (loadedBook) {
-        // Add to reading history
-        const bookId = `book-${Date.now()}`;
         setCurrentBookId(bookId);
-        
-        // Try to get cover
+
         let coverUrl: string | undefined;
         try {
           const cover = await loadedBook.coverUrl();
           if (cover) coverUrl = cover;
-        } catch {
-          // No cover available
-        }
-        
+        } catch { /* no cover */ }
+
         addToHistory({
           id: bookId,
-          title: metadata.title || file.name.replace('.epub', ''),
+          title: metadata.title || filePath.split(/[\\/]/).pop()?.replace('.epub', '') || 'Untitled',
           author: metadata.author,
           cover: coverUrl,
           lastReadAt: Date.now(),
           progress: 0,
         });
 
-        // 文件数据存入 IndexedDB
-        saveBookData(bookId, arrayBuffer).catch((e) => {
-          console.error('IndexedDB 保存失败:', e);
-          toast.error('书籍数据保存失败', { description: '请检查浏览器存储空间' });
-        });
-        
         setCurrentView('reader');
         toast.success('书籍加载成功', {
-          description: `已加载: ${file.name}`,
+          description: metadata.title || filePath.split(/[\\/]/).pop(),
         });
       }
     } catch (err) {
+      console.error('[loadEpubFile] error:', err);
       toast.error('加载失败', {
         description: err instanceof Error ? err.message : '无法解析EPUB文件',
       });
     }
   }, [loadBook, metadata, addToHistory]);
 
+  // Handle drag-drop from Tauri or browser
+  const handleFileFromDrop = useCallback(async (filePath: string) => {
+    await loadEpubFile(filePath);
+  }, [loadEpubFile]);
+
+  // Listen for Tauri drag-drop events
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string[]>('tauri://drag-drop', async (event) => {
+      const files = event.payload;
+      const epubFile = files.find(f => f.toLowerCase().endsWith('.epub'));
+      if (epubFile) {
+        await handleFileFromDrop(epubFile);
+      }
+    }).then(fn => { unlisten = fn; });
+    return () => { unlisten?.(); };
+  }, [handleFileFromDrop]);
+
   // Handle selecting book from history
   const handleSelectBookFromHistory = useCallback(async (historyBook: ReadingHistory) => {
     try {
       hasRendered.current = false;
-      initialCfi.current = historyBook.cfi; // 保存阅读位置
+      initialCfi.current = historyBook.cfi;
       setCurrentBookId(historyBook.id);
 
-      const fileData = await getBookData(historyBook.id);
-      if (fileData) {
-        await loadBook(fileData);
-        setCurrentView('reader');
+      const storedPath = await invoke<string>('get_book_file_path', { id: historyBook.id });
+      const assetUrl = convertFileSrc(storedPath);
+      await loadBook(assetUrl);
+      setCurrentView('reader');
 
-        // Update last read time
-        addToHistory({
-          ...historyBook,
-          lastReadAt: Date.now(),
-        });
+      addToHistory({
+        ...historyBook,
+        lastReadAt: Date.now(),
+      });
 
-        toast.success('继续阅读', {
-          description: historyBook.title,
-        });
-      } else {
-        toast.error('无法加载书籍', {
-          description: '书籍数据已丢失',
-        });
-      }
+      toast.success('继续阅读', { description: historyBook.title });
     } catch (err) {
-      toast.error('加载失败', {
-        description: err instanceof Error ? err.message : '无法解析EPUB文件',
+      toast.error('无法加载书籍', {
+        description: err instanceof Error ? err.message : '书籍数据已丢失',
       });
     }
   }, [loadBook, addToHistory]);
@@ -193,24 +211,18 @@ function App() {
   // Handle removing book from history
   const handleRemoveBook = useCallback((id: string) => {
     removeFromHistory(id);
-    deleteBookData(id).catch((e) => console.error('IndexedDB 删除失败:', e));
+    invoke('delete_book_file', { id }).catch((e) => console.error('删除书籍文件失败:', e));
     toast.success('已删除阅读记录');
   }, [removeFromHistory]);
 
-  // Handle render - only called once when book is loaded
+  // Handle render
   const handleRender = useCallback(async (element: HTMLElement) => {
-    // Prevent multiple renders
     if (hasRendered.current) return;
-    
-    // Wheel handler for page flip
+
     const handleWheel = (deltaY: number) => {
-      if (deltaY > 0) {
-        next();
-      } else {
-        prev();
-      }
+      if (deltaY > 0) next(); else prev();
     };
-    
+
     const rendition = renderTo(element, handleWheel, {
       width: '100%',
       height: '100%',
@@ -218,59 +230,49 @@ function App() {
 
     if (rendition) {
       hasRendered.current = true;
-      
-      // Apply initial settings
       applyTheme(themeColors);
       applyFontSettings(settings);
-      
-      // Display at saved position or first page FIRST (for quick loading)
+
       if (initialCfi.current) {
-        console.log('Restoring to position:', initialCfi.current);
         await display(initialCfi.current);
       } else {
         await display(0);
       }
-      
-      // Generate locations in background (for progress calculation)
-      // Use smaller chunk size for faster generation
-      setTimeout(() => {
-        generateLocations();
-      }, 100);
+
+      setTimeout(() => { generateLocations(); }, 100);
     }
   }, [renderTo, display, applyTheme, applyFontSettings, settings, themeColors, generateLocations]);
 
-  // Apply theme when it changes (but not on initial render)
+  // Apply theme changes
   useEffect(() => {
     if (isLoaded && hasRendered.current) {
       applyTheme(themeColors);
     }
   }, [settings.theme]);
 
-  // Apply font settings when they change (but not on initial render)
+  // Apply font settings changes
   useEffect(() => {
     if (isLoaded && hasRendered.current) {
       applyFontSettings(settings);
     }
   }, [settings.fontSize, settings.lineHeight, settings.fontFamily]);
 
-  // Auto-save reading position when location changes
+  // Auto-save position
   useEffect(() => {
     if (currentBookId && currentLocation && currentLocation.start && currentLocation.start.cfi) {
       const cfi = currentLocation.start.cfi;
       const percentage = book?.locations?.percentageFromCfi(cfi) || 0;
       const progressValue = Math.round(percentage * 100);
       updateHistoryProgress(currentBookId, progressValue, cfi);
-      console.log('Auto-saved position:', { cfi, progress: progressValue });
     }
   }, [currentBookId, currentLocation, book, updateHistoryProgress]);
 
-  // Handle bookmark toggle
+  // Bookmark toggle
   const handleToggleBookmark = useCallback(() => {
     if (!currentLocation) return;
-    
     const cfi = currentLocation.start.cfi;
-    const chapter = toc.find(item => 
-      item.href === currentLocation.start.href || 
+    const chapter = toc.find(item =>
+      item.href === currentLocation.start.href ||
       currentLocation.start.href?.includes(item.href)
     );
     const title = chapter?.label || '未命名位置';
@@ -280,32 +282,22 @@ function App() {
       toast.success('已移除书签');
     } else {
       addBookmark(cfi, title);
-      toast.success('已添加书签', {
-        description: title,
-      });
+      toast.success('已添加书签', { description: title });
     }
   }, [currentLocation, toc, isBookmarked, addBookmark, removeBookmark]);
 
-  // Handle TOC item selection
   const handleTocSelect = useCallback((href: string) => {
     goToTocItem(href);
   }, [goToTocItem]);
 
-  // Get current href for TOC highlighting
   const currentHref = currentLocation?.start.href || null;
 
-  // Get current chapter title
   const currentChapterTitle = (() => {
     if (!currentHref || toc.length === 0) return '';
     const findChapter = (items: typeof toc): string | undefined => {
       for (const item of items) {
-        if (item.href === currentHref || currentHref.includes(item.href)) {
-          return item.label;
-        }
-        if (item.subitems) {
-          const found = findChapter(item.subitems);
-          if (found) return found;
-        }
+        if (item.href === currentHref || currentHref.includes(item.href)) return item.label;
+        if (item.subitems) { const found = findChapter(item.subitems); if (found) return found; }
       }
       return undefined;
     };
@@ -313,24 +305,7 @@ function App() {
   })();
 
   return (
-    <div 
-      className="min-h-screen"
-      style={{ backgroundColor: themeColors.background }}
-    >
-      {/* Hidden file input for upload */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".epub"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFileSelect(file);
-          // Reset input so same file can be selected again
-          e.target.value = '';
-        }}
-        className="hidden"
-      />
-
+    <div className="min-h-screen" style={{ backgroundColor: themeColors.background }}>
       <TopNav
         title={currentView === 'reader' ? metadata.title : 'EPUB Reader'}
         onToggleToc={() => setIsTocOpen(true)}
@@ -390,7 +365,7 @@ function App() {
           readingHistory={getSortedHistory()}
           onSelectBook={handleSelectBookFromHistory}
           onRemoveBook={handleRemoveBook}
-          onUploadFile={triggerUpload}
+          onUploadFile={handleUploadFile}
           onGoToHome={goToHome}
           onGoToBookshelf={goToBookshelf}
           currentTab={currentHomeTab}
@@ -405,7 +380,7 @@ function App() {
             onPrev={prev}
             onNext={next}
             themeColors={themeColors}
-            onFileSelect={handleFileSelect}
+            onUploadFile={handleUploadFile}
             chapterTitle={currentChapterTitle}
             contentWidth={settings.contentWidth}
           />
@@ -413,7 +388,7 @@ function App() {
         </>
       )}
 
-      <Toaster 
+      <Toaster
         position="bottom-center"
         toastOptions={{
           style: {

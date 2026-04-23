@@ -13,21 +13,23 @@ export function useReader() {
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [progress, setProgress] = useState(0);
 
-  // Load EPUB file
-  const loadBook = useCallback(async (url: string | ArrayBuffer) => {
+  // Load EPUB file from asset URL (converted from file path via convertFileSrc)
+  const loadBook = useCallback(async (url: string) => {
+    setIsLoaded(false);
+
+    // Clean up previous book
+    if (renditionRef.current) {
+      renditionRef.current.destroy();
+      renditionRef.current = null;
+    }
+    if (bookRef.current) {
+      bookRef.current.destroy();
+      bookRef.current = null;
+    }
+
     try {
-      setIsLoaded(false);
-
-      // Clean up previous book
-      if (renditionRef.current) {
-        renditionRef.current.destroy();
-      }
-      if (bookRef.current) {
-        bookRef.current.destroy();
-      }
-
       // Create new book
-      const book = ePub(url as string);
+      const book = ePub(url);
       bookRef.current = book;
 
       // Load metadata
@@ -76,12 +78,13 @@ export function useReader() {
     renditionRef.current = rendition;
 
     // Inject custom @font-face definitions into every chapter iframe
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    // Use relative paths so fonts load correctly in both Tauri WebView and browser
+    const fontBaseUrl = './fonts';
     const fontFaceCss = `
-      @font-face { font-family: 'FZXiJinLJW'; src: url('${origin}/fonts/FZXiJinLJW.TTF') format('truetype'); font-display: swap; }
-      @font-face { font-family: 'FZYanSJW'; src: url('${origin}/fonts/FZYanSJW.TTF') format('truetype'); font-display: swap; }
-      @font-face { font-family: 'LXGWWenKaiScreen'; src: url('${origin}/fonts/LXGWWenKaiScreen.ttf') format('truetype'); font-display: swap; }
-      @font-face { font-family: 'ZhuqueFangsong'; src: url('${origin}/fonts/%E6%9C%B1%E9%9B%80%E4%BB%BF%E5%AE%8B.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'FZXiJinLJW'; src: url('${fontBaseUrl}/FZXiJinLJW.TTF') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'FZYanSJW'; src: url('${fontBaseUrl}/FZYanSJW.TTF') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'LXGWWenKaiScreen'; src: url('${fontBaseUrl}/LXGWWenKaiScreen.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'ZhuqueFangsong'; src: url('${fontBaseUrl}/%E6%9C%B1%E9%9B%80%E4%BB%BF%E5%AE%8B.ttf') format('truetype'); font-display: swap; }
     `;
     rendition.hooks.content.register((contents: Contents) => {
       const doc = contents.document;
