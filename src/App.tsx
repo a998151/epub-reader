@@ -20,12 +20,14 @@ import './App.css';
 type View = 'home' | 'reader';
 type HomeTab = 'home' | 'bookshelf';
 
-// Convert a blob URL to a small JPEG data URL so covers survive session restarts
-function coverBlobToDataUrl(blobUrl: string): Promise<string> {
+// Resize a cover image blob URL to a small JPEG and return raw bytes.
+// Covers are persisted as files in AppData via Rust rather than inlined into history.json
+// to keep that config file small and fast to parse.
+function coverBlobToBytes(blobUrl: string): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 160;
+      const MAX = 200;
       const scale = Math.min(MAX / img.naturalWidth, MAX / img.naturalHeight, 1);
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.naturalWidth * scale);
@@ -33,7 +35,11 @@ function coverBlobToDataUrl(blobUrl: string): Promise<string> {
       const ctx = canvas.getContext('2d');
       if (!ctx) { reject(new Error('no canvas context')); return; }
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.75));
+      canvas.toBlob(async (blob) => {
+        if (!blob) { reject(new Error('no blob')); return; }
+        const buf = await blob.arrayBuffer();
+        resolve(new Uint8Array(buf));
+      }, 'image/jpeg', 0.8);
     };
     img.onerror = () => reject(new Error('cover load failed'));
     img.src = blobUrl;
@@ -52,7 +58,10 @@ function App() {
     metadata,
     currentLocation,
     progress,
+    locationsReady,
+    displayed,
     loadBook,
+    unloadBook,
     renderTo,
     display,
     next,
@@ -74,6 +83,8 @@ function App() {
     addBookmark,
     removeBookmark,
     isBookmarked,
+    getBookmarksFor,
+    removeBookmarksByBook,
     addToHistory,
     updateHistoryProgress,
     removeFromHistory,
@@ -96,37 +107,54 @@ function App() {
     return new Uint8Array(bytes).buffer;
   }, []);
 
-  // Save current reading position
+  // Save current reading position. Only updates progress when locations are ready,
+  // otherwise we'd overwrite saved progress with 0.
   const saveCurrentPosition = useCallback(() => {
-    if (currentBookId) {
-      const location = getCurrentLocation() as { start?: { cfi: string } } | null;
-      if (location && location.start && location.start.cfi) {
-        const cfi = location.start.cfi;
-        const percentage = book?.locations?.percentageFromCfi(cfi) || 0;
-        const progressValue = Math.round(percentage * 100);
-        updateHistoryProgress(currentBookId, progressValue, cfi);
+    if (!currentBookId) return;
+    const location = getCurrentLocation() as { start?: { cfi: string } } | null;
+    const cfi = location?.start?.cfi;
+    if (!cfi) return;
+    if (locationsReady && book?.locations) {
+      const percentage = book.locations.percentageFromCfi(cfi);
+      if (Number.isFinite(percentage)) {
+        updateHistoryProgress(currentBookId, Math.round(percentage * 100), cfi);
+        return;
       }
     }
-  }, [currentBookId, book, getCurrentLocation, updateHistoryProgress]);
+    // Save the cfi without touching the stored progress value
+    updateHistoryProgress(currentBookId, undefined, cfi);
+  }, [currentBookId, book, locationsReady, getCurrentLocation, updateHistoryProgress]);
+
+  const leaveReader = useCallback(() => {
+    saveCurrentPosition();
+    hasRendered.current = false;
+    initialCfi.current = undefined;
+    unloadBook();
+    setCurrentBookId(null);
+  }, [saveCurrentPosition, unloadBook]);
 
   const goToHome = useCallback(() => {
-    saveCurrentPosition();
+    leaveReader();
     setCurrentView('home');
     setCurrentHomeTab('home');
-  }, [saveCurrentPosition]);
+  }, [leaveReader]);
 
   const goToBookshelf = useCallback(() => {
-    saveCurrentPosition();
+    leaveReader();
     setCurrentView('home');
     setCurrentHomeTab('bookshelf');
-  }, [saveCurrentPosition]);
+  }, [leaveReader]);
 
   // Load an EPUB file from a file path
   const loadEpubFile = useCallback(async (filePath: string) => {
     console.log('[loadEpubFile] starting, filePath:', filePath);
     try {
       hasRendered.current = false;
-      const bookId = `book-${Date.now()}`;
+      // Use a collision-resistant id so rapid imports cannot overwrite each other.
+      const randomPart = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID().slice(0, 8)
+        : Math.random().toString(36).slice(2, 10);
+      const bookId = `book-${Date.now()}-${randomPart}`;
 
       // Save book file via Rust backend
       console.log('[loadEpubFile] saving book file...');
@@ -146,17 +174,21 @@ function App() {
         const title = epubMeta?.title || filePath.split(/[\\/]/).pop()?.replace('.epub', '') || 'Untitled';
         const author: string | undefined = epubMeta?.creator;
 
-        let coverUrl: string | undefined;
+        let hasCover = false;
         try {
           const blobUrl = await loadedBook.coverUrl();
-          if (blobUrl) coverUrl = await coverBlobToDataUrl(blobUrl);
+          if (blobUrl) {
+            const bytes = await coverBlobToBytes(blobUrl);
+            await invoke('save_cover', { id: bookId, bytes: Array.from(bytes) });
+            hasCover = true;
+          }
         } catch { /* no cover */ }
 
         addToHistory({
           id: bookId,
           title,
           author,
-          cover: coverUrl,
+          hasCover,
           lastReadAt: Date.now(),
           progress: 0,
         });
@@ -228,18 +260,27 @@ function App() {
 
       toast.success('继续阅读', { description: historyBook.title });
     } catch (err) {
-      toast.error('无法加载书籍', {
-        description: err instanceof Error ? err.message : '书籍数据已丢失',
+      // Book file is gone from disk — auto-clean the orphaned history entry.
+      removeFromHistory(historyBook.id);
+      removeBookmarksByBook(historyBook.id);
+      invoke('delete_cover', { id: historyBook.id }).catch(() => {});
+      setCurrentBookId(null);
+      toast.error('书籍文件已丢失', {
+        description: err instanceof Error
+          ? `已从阅读记录移除：${historyBook.title}`
+          : '已自动从阅读记录移除',
       });
     }
-  }, [loadBook, addToHistory, readBookData]);
+  }, [loadBook, addToHistory, readBookData, removeFromHistory, removeBookmarksByBook]);
 
   // Handle removing book from history
   const handleRemoveBook = useCallback((id: string) => {
     removeFromHistory(id);
+    removeBookmarksByBook(id);
     invoke('delete_book_file', { id }).catch((e) => console.error('删除书籍文件失败:', e));
+    invoke('delete_cover', { id }).catch(() => {});
     toast.success('已删除阅读记录');
-  }, [removeFromHistory]);
+  }, [removeFromHistory, removeBookmarksByBook]);
 
   // Handle render
   const handleRender = useCallback(async (element: HTMLElement) => {
@@ -269,6 +310,12 @@ function App() {
     }
   }, [renderTo, display, applyTheme, applyFontSettings, settings, themeColors, generateLocations]);
 
+  // 同步主题背景到 html/body，避免滚动回弹时露出 shadcn 的浅色底
+  useEffect(() => {
+    document.documentElement.style.backgroundColor = themeColors.background;
+    document.body.style.backgroundColor = themeColors.background;
+  }, [themeColors.background]);
+
   // Apply theme changes
   useEffect(() => {
     if (isLoaded && hasRendered.current) {
@@ -283,19 +330,24 @@ function App() {
     }
   }, [settings.fontSize, settings.lineHeight, settings.fontFamily]);
 
-  // Auto-save position
+  // Auto-save position on page flips. Skip progress math until locations finished
+  // generating, otherwise `percentageFromCfi` returns 0 and overwrites real progress.
   useEffect(() => {
-    if (currentBookId && currentLocation && currentLocation.start && currentLocation.start.cfi) {
-      const cfi = currentLocation.start.cfi;
-      const percentage = book?.locations?.percentageFromCfi(cfi) || 0;
-      const progressValue = Math.round(percentage * 100);
-      updateHistoryProgress(currentBookId, progressValue, cfi);
+    const cfi = currentLocation?.start?.cfi;
+    if (!currentBookId || !cfi) return;
+    if (locationsReady && book?.locations) {
+      const percentage = book.locations.percentageFromCfi(cfi);
+      if (Number.isFinite(percentage)) {
+        updateHistoryProgress(currentBookId, Math.round(percentage * 100), cfi);
+        return;
+      }
     }
-  }, [currentBookId, currentLocation, book, updateHistoryProgress]);
+    updateHistoryProgress(currentBookId, undefined, cfi);
+  }, [currentBookId, currentLocation, book, locationsReady, updateHistoryProgress]);
 
-  // Bookmark toggle
+  // Bookmark toggle — scoped to current book
   const handleToggleBookmark = useCallback(() => {
-    if (!currentLocation) return;
+    if (!currentLocation || !currentBookId) return;
     const cfi = currentLocation.start.cfi;
     const chapter = toc.find(item =>
       item.href === currentLocation.start.href ||
@@ -303,18 +355,30 @@ function App() {
     );
     const title = chapter?.label || '未命名位置';
 
-    if (isBookmarked(cfi)) {
-      removeBookmark(cfi);
+    if (isBookmarked(currentBookId, cfi)) {
+      removeBookmark(currentBookId, cfi);
       toast.success('已移除书签');
     } else {
-      addBookmark(cfi, title);
+      addBookmark(currentBookId, cfi, title);
       toast.success('已添加书签', { description: title });
     }
-  }, [currentLocation, toc, isBookmarked, addBookmark, removeBookmark]);
+  }, [currentLocation, currentBookId, toc, isBookmarked, addBookmark, removeBookmark]);
 
   const handleTocSelect = useCallback((href: string) => {
     goToTocItem(href);
   }, [goToTocItem]);
+
+  const handleJumpToBookmark = useCallback((cfi: string) => {
+    display(cfi);
+  }, [display]);
+
+  const handleRemoveBookmark = useCallback((cfi: string) => {
+    if (!currentBookId) return;
+    removeBookmark(currentBookId, cfi);
+    toast.success('已移除书签');
+  }, [currentBookId, removeBookmark]);
+
+  const currentBookBookmarks = currentBookId ? getBookmarksFor(currentBookId) : [];
 
   const currentHref = currentLocation?.start.href || null;
 
@@ -331,7 +395,13 @@ function App() {
   })();
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: themeColors.background }}>
+    <div
+      className="min-h-screen"
+      style={{
+        backgroundColor: themeColors.background,
+        ['--accent-color' as string]: themeColors.accent,
+      }}
+    >
       <TopNav
         title={currentView === 'reader' ? metadata.title : 'EPUB Reader'}
         onToggleToc={() => setIsTocOpen(true)}
@@ -347,10 +417,9 @@ function App() {
           onOpenFontSettings={() => setIsFontSettingsOpen(true)}
           onOpenThemeSettings={() => setIsThemeSettingsOpen(true)}
           onToggleBookmark={handleToggleBookmark}
-          onOpenSettings={() => {}}
           onPrev={prev}
           onNext={next}
-          isBookmarked={currentLocation ? isBookmarked(currentLocation.start.cfi) : false}
+          isBookmarked={!!(currentLocation && currentBookId && isBookmarked(currentBookId, currentLocation.start.cfi))}
           themeColors={themeColors}
         />
       )}
@@ -362,6 +431,9 @@ function App() {
         currentHref={currentHref}
         onSelectItem={handleTocSelect}
         themeColors={themeColors}
+        bookmarks={currentBookBookmarks}
+        onJumpToBookmark={handleJumpToBookmark}
+        onRemoveBookmark={handleRemoveBookmark}
       />
 
       <FontSettings
@@ -402,6 +474,7 @@ function App() {
           <Reader
             book={book}
             isLoaded={isLoaded}
+            displayed={displayed}
             onRender={handleRender}
             onPrev={prev}
             onNext={next}
@@ -409,6 +482,7 @@ function App() {
             onUploadFile={handleUploadFile}
             chapterTitle={currentChapterTitle}
             contentWidth={settings.contentWidth}
+            navDisabled={isTocOpen || isFontSettingsOpen || isThemeSettingsOpen}
           />
           {isLoaded && <ProgressBar progress={progress} themeColors={themeColors} />}
         </>
@@ -418,9 +492,12 @@ function App() {
         position="bottom-center"
         toastOptions={{
           style: {
-            background: themeColors.secondaryBg,
+            background: themeColors.glass,
             color: themeColors.text,
-            border: `1px solid ${themeColors.border}`,
+            border: `1px solid ${themeColors.glassBorder}`,
+            backdropFilter: 'blur(24px) saturate(140%)',
+            borderRadius: '16px',
+            boxShadow: `0 1px 0 ${themeColors.glassBorder} inset, 0 12px 30px -12px rgba(0,0,0,0.3)`,
           },
         }}
       />

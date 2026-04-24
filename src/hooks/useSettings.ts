@@ -23,7 +23,12 @@ export function useSettings() {
         const [savedSettings, savedBookmarks, savedHistory] = await Promise.all([
           invoke<ReaderSettings>('load_settings'),
           invoke<Bookmark[]>('load_bookmarks'),
-          invoke<Array<ReadingHistory & { author: string | null; cover: string | null; cfi: string | null }>>('load_history'),
+          invoke<Array<ReadingHistory & {
+            author: string | null;
+            cover: string | null;
+            hasCover: boolean | null;
+            cfi: string | null;
+          }>>('load_history'),
         ]);
         setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
         setBookmarks(savedBookmarks);
@@ -31,6 +36,7 @@ export function useSettings() {
           ...h,
           author: h.author ?? undefined,
           cover: h.cover ?? undefined,
+          hasCover: h.hasCover ?? undefined,
           cfi: h.cfi ?? undefined,
         })));
       } catch {
@@ -68,6 +74,7 @@ export function useSettings() {
       ...h,
       author: h.author ?? null,
       cover: h.cover ?? null,
+      hasCover: h.hasCover ?? null,
       cfi: h.cfi ?? null,
     }));
     invoke('save_history', { history: serializable }).catch(console.error);
@@ -102,27 +109,41 @@ export function useSettings() {
     saveSettings({ theme });
   }, [saveSettings]);
 
-  // Bookmark management
-  const addBookmark = useCallback((cfi: string, title: string) => {
+  // Bookmark management — scoped by bookId to prevent cross-book pollution
+  const addBookmark = useCallback((bookId: string, cfi: string, title: string) => {
     setBookmarks((prev) => {
-      const newBookmark: Bookmark = { cfi, title, createdAt: Date.now() };
+      const newBookmark: Bookmark = { bookId, cfi, title, createdAt: Date.now() };
       const updated = [...prev, newBookmark];
       persistBookmarks(updated);
       return updated;
     });
   }, [persistBookmarks]);
 
-  const removeBookmark = useCallback((cfi: string) => {
+  const removeBookmark = useCallback((bookId: string, cfi: string) => {
     setBookmarks((prev) => {
-      const updated = prev.filter((b) => b.cfi !== cfi);
+      const updated = prev.filter((b) => !(b.bookId === bookId && b.cfi === cfi));
       persistBookmarks(updated);
       return updated;
     });
   }, [persistBookmarks]);
 
-  const isBookmarked = useCallback((cfi: string) => {
-    return bookmarks.some((b) => b.cfi === cfi);
+  const isBookmarked = useCallback((bookId: string, cfi: string) => {
+    return bookmarks.some((b) => b.bookId === bookId && b.cfi === cfi);
   }, [bookmarks]);
+
+  const getBookmarksFor = useCallback((bookId: string) => {
+    return bookmarks
+      .filter((b) => b.bookId === bookId)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [bookmarks]);
+
+  const removeBookmarksByBook = useCallback((bookId: string) => {
+    setBookmarks((prev) => {
+      const updated = prev.filter((b) => b.bookId !== bookId);
+      persistBookmarks(updated);
+      return updated;
+    });
+  }, [persistBookmarks]);
 
   // Reading history management
   const addToHistory = useCallback((book: ReadingHistory) => {
@@ -134,11 +155,17 @@ export function useSettings() {
     });
   }, [persistHistory]);
 
-  const updateHistoryProgress = useCallback((id: string, progress: number, cfi?: string) => {
+  // progress may be undefined — in that case only cfi/lastReadAt are updated.
+  const updateHistoryProgress = useCallback((id: string, progress: number | undefined, cfi?: string) => {
     setReadingHistory((prev) => {
       const updated = prev.map((book) =>
         book.id === id
-          ? { ...book, progress, lastReadAt: Date.now(), ...(cfi && { cfi }) }
+          ? {
+              ...book,
+              ...(progress !== undefined && { progress }),
+              lastReadAt: Date.now(),
+              ...(cfi && { cfi }),
+            }
           : book
       );
       persistHistory(updated);
@@ -158,22 +185,94 @@ export function useSettings() {
     return [...readingHistory].sort((a, b) => b.lastReadAt - a.lastReadAt);
   }, [readingHistory]);
 
-  // Get theme colors
+  // Get theme colors — 暖中性基底 + 柔和点缀色 + 玻璃表面
   const getThemeColors = useCallback(() => {
     switch (settings.theme) {
       case 'dark':
-        return { background: '#1a1a1a', text: '#e8e8e8', secondaryBg: '#2d2d2d', border: '#3d3d3d', icon: '#b0b0b0' };
+        return {
+          background: '#1a1814',
+          text: '#e8e3d8',
+          secondaryBg: '#26221e',
+          border: 'rgba(232, 227, 216, 0.09)',
+          icon: '#a89f8f',
+          glass: 'rgba(38, 34, 30, 0.55)',
+          glassBorder: 'rgba(255, 255, 255, 0.06)',
+          accent: '#d9a67e',
+          accentSoft: 'rgba(217, 166, 126, 0.14)',
+          blob1: 'rgba(217, 166, 126, 0.12)',
+          blob2: 'rgba(152, 116, 95, 0.10)',
+        };
       case 'sepia':
-        return { background: '#f4ecd8', text: '#5b4636', secondaryBg: '#e9dfc6', border: '#d4c9b0', icon: '#8b7355' };
+        return {
+          background: '#f4ecd8',
+          text: '#5b4636',
+          secondaryBg: '#ede3ca',
+          border: 'rgba(91, 70, 54, 0.14)',
+          icon: '#7a5c41', // 加深以满足 body text 4.5:1
+          glass: 'rgba(253, 248, 232, 0.55)',
+          glassBorder: 'rgba(255, 255, 255, 0.5)',
+          accent: '#8c5a3f', // 加深以保证强调色对比度 4.5:1 以上
+          accentSoft: 'rgba(140, 90, 63, 0.14)',
+          blob1: 'rgba(140, 90, 63, 0.10)',
+          blob2: 'rgba(196, 164, 115, 0.14)',
+        };
       case 'green':
-        return { background: '#c7edcc', text: '#2b4a2f', secondaryBg: '#b8e0be', border: '#a3d2ab', icon: '#5a8a62' };
+        return {
+          background: '#e8eedc',
+          text: '#2f4a32',
+          secondaryBg: '#dde5cd',
+          border: 'rgba(47, 74, 50, 0.12)',
+          icon: '#60825f',
+          glass: 'rgba(240, 246, 224, 0.55)',
+          glassBorder: 'rgba(255, 255, 255, 0.4)',
+          accent: '#7a9e6e',
+          accentSoft: 'rgba(122, 158, 110, 0.16)',
+          blob1: 'rgba(122, 158, 110, 0.12)',
+          blob2: 'rgba(180, 200, 145, 0.14)',
+        };
       case 'darkGreen':
-        return { background: '#1e2b1e', text: '#c5d6c5', secondaryBg: '#2a3d2a', border: '#3a4f3a', icon: '#8fa88f' };
+        return {
+          background: '#1c241c',
+          text: '#d4dcd0',
+          secondaryBg: '#2a342a',
+          border: 'rgba(212, 220, 208, 0.09)',
+          icon: '#97a897',
+          glass: 'rgba(42, 52, 42, 0.55)',
+          glassBorder: 'rgba(255, 255, 255, 0.06)',
+          accent: '#a8c293',
+          accentSoft: 'rgba(168, 194, 147, 0.14)',
+          blob1: 'rgba(168, 194, 147, 0.12)',
+          blob2: 'rgba(120, 150, 108, 0.10)',
+        };
       case 'darkBlue':
-        return { background: '#1a1f2e', text: '#c8cdd9', secondaryBg: '#252b3d', border: '#353d52', icon: '#8b94a8' };
+        return {
+          background: '#1a1f2a',
+          text: '#d0d4de',
+          secondaryBg: '#262c3a',
+          border: 'rgba(208, 212, 222, 0.09)',
+          icon: '#929ab0',
+          glass: 'rgba(38, 44, 58, 0.55)',
+          glassBorder: 'rgba(255, 255, 255, 0.06)',
+          accent: '#b5a0d0',
+          accentSoft: 'rgba(181, 160, 208, 0.14)',
+          blob1: 'rgba(181, 160, 208, 0.12)',
+          blob2: 'rgba(110, 138, 188, 0.10)',
+        };
       case 'light':
       default:
-        return { background: '#f8f9fa', text: '#333333', secondaryBg: '#ffffff', border: '#e8e8e8', icon: '#666666' };
+        return {
+          background: '#f5f1ea',
+          text: '#2d2a26',
+          secondaryBg: '#fbf7f0',
+          border: 'rgba(45, 42, 38, 0.08)',
+          icon: '#6b6359',
+          glass: 'rgba(255, 253, 248, 0.55)',
+          glassBorder: 'rgba(255, 255, 255, 0.7)',
+          accent: '#c97b63',
+          accentSoft: 'rgba(201, 123, 99, 0.12)',
+          blob1: 'rgba(201, 123, 99, 0.14)',
+          blob2: 'rgba(230, 197, 157, 0.18)',
+        };
     }
   }, [settings.theme]);
 
@@ -190,6 +289,8 @@ export function useSettings() {
     addBookmark,
     removeBookmark,
     isBookmarked,
+    getBookmarksFor,
+    removeBookmarksByBook,
     addToHistory,
     updateHistoryProgress,
     removeFromHistory,

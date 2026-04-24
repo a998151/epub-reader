@@ -23,11 +23,24 @@ impl Default for ReaderSettings {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct Bookmark {
+    #[serde(default)]
+    pub book_id: String,
     pub cfi: String,
     pub title: String,
     pub created_at: u64,
+}
+
+impl Default for Bookmark {
+    fn default() -> Self {
+        Self {
+            book_id: String::new(),
+            cfi: String::new(),
+            title: String::new(),
+            created_at: 0,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -35,10 +48,16 @@ pub struct Bookmark {
 pub struct ReadingHistory {
     pub id: String,
     pub title: String,
+    #[serde(default)]
     pub author: Option<String>,
+    // Legacy inline data URL — kept for backward compat with older history.json files.
+    #[serde(default)]
     pub cover: Option<String>,
+    #[serde(default)]
+    pub has_cover: Option<bool>,
     pub last_read_at: u64,
     pub progress: u32,
+    #[serde(default)]
     pub cfi: Option<String>,
 }
 

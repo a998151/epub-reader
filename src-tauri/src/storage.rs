@@ -36,10 +36,12 @@ pub fn remove_book(app_handle: &tauri::AppHandle, id: &str) -> Result<(), String
     if book_path.exists() {
         fs::remove_file(&book_path).map_err(|e| e.to_string())?;
     }
-    // Also remove cached cover
-    let cover_path = covers_dir(app_handle).join(format!("{}.png", id));
-    if cover_path.exists() {
-        fs::remove_file(&cover_path).map_err(|e| e.to_string())?;
+    // Also remove cached cover (jpg now; old png cleaned defensively)
+    for ext in ["jpg", "png"] {
+        let cover_path = covers_dir(app_handle).join(format!("{}.{}", id, ext));
+        if cover_path.exists() {
+            fs::remove_file(&cover_path).map_err(|e| e.to_string())?;
+        }
     }
     Ok(())
 }
@@ -51,4 +53,32 @@ pub fn book_path(app_handle: &tauri::AppHandle, id: &str) -> Result<PathBuf, Str
     } else {
         Err(format!("book not found: {}", id))
     }
+}
+
+// --- Cover storage -----------------------------------------------------------
+
+pub fn write_cover(
+    app_handle: &tauri::AppHandle,
+    id: &str,
+    bytes: &[u8],
+) -> Result<PathBuf, String> {
+    let path = covers_dir(app_handle).join(format!("{}.jpg", id));
+    fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path)
+}
+
+pub fn read_cover(app_handle: &tauri::AppHandle, id: &str) -> Result<Option<Vec<u8>>, String> {
+    let path = covers_dir(app_handle).join(format!("{}.jpg", id));
+    if !path.exists() {
+        return Ok(None);
+    }
+    fs::read(&path).map(Some).map_err(|e| e.to_string())
+}
+
+pub fn remove_cover(app_handle: &tauri::AppHandle, id: &str) -> Result<(), String> {
+    let path = covers_dir(app_handle).join(format!("{}.jpg", id));
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }

@@ -29,6 +29,9 @@ pub fn run() {
             commands::load_history,
             commands::save_history,
             commands::read_book_bytes,
+            commands::save_cover,
+            commands::read_cover,
+            commands::delete_cover,
             commands::get_app_data_dir,
         ])
         .run(tauri::generate_context!())

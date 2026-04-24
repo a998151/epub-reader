@@ -1,7 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import ePub from 'epubjs';
+// epubjs is loaded on demand to keep it out of the Home/landing bundle
+// (it's ~500 KB gzipped and not needed until the user opens a book).
 import type { Book, Rendition, Location, Contents } from 'epubjs';
 import type { TocItem, BookMetadata } from '@/types';
+
+// Safely destroy an epubjs object even if it has already been torn down
+// (guards against React StrictMode double-mount invocations).
+function safeDestroy(target: { destroy?: () => void } | null | undefined) {
+  if (!target) return;
+  try { target.destroy?.(); } catch { /* already destroyed */ }
+}
 
 export function useReader() {
   const bookRef = useRef<Book | null>(null);
@@ -12,22 +20,25 @@ export function useReader() {
   const [metadata, setMetadata] = useState<BookMetadata>({ title: '' });
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [progress, setProgress] = useState(0);
+  const [locationsReady, setLocationsReady] = useState(false);
+  const [displayed, setDisplayed] = useState(false);
 
   // Load EPUB from a URL string or ArrayBuffer (ArrayBuffer avoids fetch in WebView2)
   const loadBook = useCallback(async (input: string | ArrayBuffer) => {
     setIsLoaded(false);
+    setLocationsReady(false);
+    setDisplayed(false);
+    setProgress(0);
 
     // Clean up previous book
-    if (renditionRef.current) {
-      renditionRef.current.destroy();
-      renditionRef.current = null;
-    }
-    if (bookRef.current) {
-      bookRef.current.destroy();
-      bookRef.current = null;
-    }
+    safeDestroy(renditionRef.current);
+    renditionRef.current = null;
+    safeDestroy(bookRef.current);
+    bookRef.current = null;
 
     try {
+      // Dynamic import keeps epubjs out of the initial bundle.
+      const { default: ePub } = await import('epubjs');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const book = ePub(input as any);
       bookRef.current = book;
@@ -112,13 +123,21 @@ export function useReader() {
 
     // Listen for location changes - this fires when page changes
     rendition.on('relocated', (location: Location) => {
-      console.log('Relocated:', location);
       setCurrentLocation(location);
-      if (bookRef.current && location.start.cfi) {
-        const percentage = bookRef.current.locations.percentageFromCfi(location.start.cfi);
-        setProgress(Math.round(percentage * 100));
+      const bk = bookRef.current;
+      // Only compute progress after locations finished generating — prevents overwriting
+      // saved progress with 0 during the brief window before `generateLocations` resolves.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const locationsLen = (bk?.locations as any)?.length?.() ?? 0;
+      if (bk && location.start.cfi && locationsLen > 0) {
+        const percentage = bk.locations.percentageFromCfi(location.start.cfi);
+        if (Number.isFinite(percentage)) setProgress(Math.round(percentage * 100));
       }
     });
+
+    // Display / render lifecycle — drive the loading overlay reliably
+    rendition.on('displayed', () => setDisplayed(true));
+    rendition.on('rendered', () => setDisplayed(true));
 
     // Add wheel event listener to iframe content
     if (onWheel) {
@@ -241,20 +260,46 @@ export function useReader() {
   // Generate locations for progress (with smaller chunk for faster generation)
   const generateLocations = useCallback(async () => {
     if (bookRef.current) {
-      // Use 512 instead of 1024 for faster generation
-      await bookRef.current.locations.generate(512);
+      try {
+        await bookRef.current.locations.generate(512);
+        setLocationsReady(true);
+        // Back-fill progress for the current location once locations are ready
+        if (renditionRef.current) {
+          const loc = renditionRef.current.currentLocation() as unknown as Location | null;
+          if (loc?.start?.cfi) {
+            const pct = bookRef.current.locations.percentageFromCfi(loc.start.cfi);
+            if (Number.isFinite(pct)) setProgress(Math.round(pct * 100));
+          }
+        }
+      } catch (err) {
+        console.error('generateLocations failed:', err);
+      }
     }
+  }, []);
+
+  // Explicitly release the current book (e.g. on returning to Home)
+  const unloadBook = useCallback(() => {
+    safeDestroy(renditionRef.current);
+    renditionRef.current = null;
+    safeDestroy(bookRef.current);
+    bookRef.current = null;
+    fontSettingsRef.current = null;
+    setIsLoaded(false);
+    setLocationsReady(false);
+    setDisplayed(false);
+    setToc([]);
+    setMetadata({ title: '' });
+    setCurrentLocation(null);
+    setProgress(0);
   }, []);
 
   // Cleanup
   useEffect(() => {
     return () => {
-      if (renditionRef.current) {
-        renditionRef.current.destroy();
-      }
-      if (bookRef.current) {
-        bookRef.current.destroy();
-      }
+      safeDestroy(renditionRef.current);
+      renditionRef.current = null;
+      safeDestroy(bookRef.current);
+      bookRef.current = null;
     };
   }, []);
 
@@ -266,7 +311,10 @@ export function useReader() {
     metadata,
     currentLocation,
     progress,
+    locationsReady,
+    displayed,
     loadBook,
+    unloadBook,
     renderTo,
     display,
     next,

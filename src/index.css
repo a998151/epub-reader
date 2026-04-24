@@ -72,8 +72,10 @@
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
+  html, body {
+    /* 让根组件的主题背景真正贯穿整个视口，避免触控板弹性滚动时露出浅色底 */
+    background: transparent;
+    @apply text-foreground;
     font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -105,7 +107,71 @@
   font-display: swap;
 }
 
+/* ────────────────────────────────────────────────────────────
+   Organic Modernism · Soft Minimalism · Glassmorphism tokens
+   ──────────────────────────────────────────────────────────── */
+:root {
+  /* 有机圆角尺度 */
+  --radius-organic-sm: 14px;
+  --radius-organic: 20px;
+  --radius-organic-lg: 28px;
+  --radius-organic-xl: 36px;
+
+  /* 柔和动效 */
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-gentle: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 180ms;
+  --dur-base: 260ms;
+  --dur-slow: 420ms;
+
+  /* 玻璃拟态 */
+  --glass-blur: 24px;
+  --glass-saturate: 140%;
+
+  /* Z-index scale — 统一管理层级避免各组件随意使用数字 */
+  --z-progress: 60;        /* 阅读页底部进度条 */
+  --z-reader-loading: 70;  /* 阅读页加载蒙层 */
+  --z-edge: 75;            /* 阅读页边缘翻页区 */
+  --z-reader-ui: 80;       /* 阅读页翻页按钮 */
+  --z-toolbar: 90;         /* 右侧/底部工具栏 */
+  --z-chapter: 95;         /* 章节标题条（在工具栏之上？不，之下） */
+  --z-topnav: 100;         /* 顶部导航 */
+  --z-overlay: 110;        /* 浮层遮罩 */
+  --z-panel: 120;          /* 浮层面板 */
+}
+
+/* 玻璃拟态实用类 */
+.glass-surface {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+
+.glass-surface-strong {
+  backdrop-filter: blur(40px) saturate(160%);
+  -webkit-backdrop-filter: blur(40px) saturate(160%);
+}
+
+/* 有机非对称圆角（温柔的不完美） */
+.radius-organic-asymmetric {
+  border-radius: 28px 22px 28px 22px;
+}
+.radius-organic-blob {
+  border-radius: 42% 58% 54% 46% / 48% 44% 56% 52%;
+}
+
 /* Base styles for EPUB reader */
 #root {
   min-height: 100vh;
+}
+
+/* 低优先级：respect reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

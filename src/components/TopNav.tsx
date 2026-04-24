@@ -1,5 +1,6 @@
-import { BookOpen, List, User, Home } from 'lucide-react';
+import { BookOpen, List, Home } from 'lucide-react';
 import { motion } from 'framer-motion';
+import type { ThemeColors } from '@/types';
 
 interface TopNavProps {
   title: string;
@@ -7,120 +8,93 @@ interface TopNavProps {
   onGoToHome: () => void;
   onGoToBookshelf: () => void;
   currentView: 'home' | 'reader';
-  themeColors: {
-    background: string;
-    text: string;
-    secondaryBg: string;
-    border: string;
-    icon: string;
-  };
+  themeColors: ThemeColors;
 }
 
 export function TopNav({ title, onToggleToc, onGoToHome, currentView, themeColors }: TopNavProps) {
   return (
     <motion.header
-      initial={{ opacity: 0, y: -20 }}
+      initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-      className="fixed top-0 left-0 right-0 h-[60px] z-[100] px-6 lg:px-10 flex items-center justify-between"
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="fixed top-0 left-0 right-0 h-[64px] z-[100] px-6 lg:px-10 flex items-center justify-between glass-surface"
       style={{
-        backgroundColor: themeColors.background,
-        borderBottom: `1px solid ${themeColors.border}`,
+        backgroundColor: themeColors.glass,
+        borderBottom: `1px solid ${themeColors.glassBorder}`,
+        boxShadow: `0 1px 0 ${themeColors.border}, 0 8px 24px -20px rgba(0,0,0,0.25)`,
       }}
     >
-      {/* Left side */}
-      <div className="flex items-center gap-4">
-        <BookOpen 
-          size={24} 
-          style={{ color: themeColors.icon }}
-          className="transition-colors hover:opacity-80"
-        />
-        <span 
-          className="text-base font-medium max-w-[200px] lg:max-w-[400px] truncate"
-          style={{ color: themeColors.text }}
+      {/* Left — 品牌区 */}
+      <div className="flex items-center gap-3">
+        <motion.button
+          whileHover={{ rotate: -4, scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+          onClick={onGoToHome}
+          aria-label="回到首页"
+          title="回到首页"
+          className="w-9 h-9 flex items-center justify-center"
+          style={{
+            borderRadius: '42% 58% 54% 46% / 48% 44% 56% 52%',
+            background: `linear-gradient(135deg, ${themeColors.accent}, ${themeColors.accentSoft})`,
+            boxShadow: `0 4px 12px -2px ${themeColors.accentSoft}`,
+          }}
         >
-          {title || 'EPUB Reader'}
+          <BookOpen size={18} style={{ color: '#fff', opacity: 0.95 }} strokeWidth={2.2} />
+        </motion.button>
+
+        <span
+          className="text-[15px] font-medium max-w-[200px] lg:max-w-[420px] truncate tracking-tight"
+          style={{
+            color: themeColors.text,
+            fontFamily: '"Noto Serif SC", "Source Han Serif SC", serif',
+          }}
+        >
+          {title || '静读 · EPUB Reader'}
         </span>
+
         {currentView === 'reader' && (
           <button
             onClick={onToggleToc}
-            className="p-2 rounded-lg transition-all duration-200 hover:scale-105"
-            style={{ 
-              color: themeColors.icon,
-            }}
+            aria-label="目录"
+            className="ml-1 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200"
+            style={{ color: themeColors.icon }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = `${themeColors.icon}20`;
-              e.currentTarget.style.color = themeColors.text;
+              e.currentTarget.style.backgroundColor = themeColors.accentSoft;
+              e.currentTarget.style.color = themeColors.accent;
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent';
               e.currentTarget.style.color = themeColors.icon;
             }}
           >
-            <List size={20} />
+            <List size={18} strokeWidth={2} />
           </button>
         )}
       </div>
 
-      {/* Right side */}
-      <div className="flex items-center gap-2">
-        <nav className="hidden sm:flex items-center gap-1">
+      {/* Right — 仅在阅读页显示回首页按钮；首页自身的 Tab 已承担导航 */}
+      <div className="flex items-center gap-1">
+        {currentView === 'reader' && (
           <button
             onClick={onGoToHome}
-            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 relative group flex items-center gap-2`}
-            style={{ color: currentView === 'home' ? '#4a9eff' : themeColors.icon }}
+            className="px-3.5 py-2 text-sm rounded-full transition-all duration-200 flex items-center gap-2"
+            style={{
+              color: themeColors.icon,
+            }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#4a9eff';
+              e.currentTarget.style.backgroundColor = themeColors.accentSoft;
+              e.currentTarget.style.color = themeColors.accent;
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = currentView === 'home' ? '#4a9eff' : themeColors.icon;
-            }}
-          >
-            <Home size={16} />
-            首页
-            {currentView === 'home' && (
-              <span 
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4/5 h-0.5 rounded-full"
-                style={{ backgroundColor: '#4a9eff' }}
-              />
-            )}
-          </button>
-          {/* <button
-            onClick={onGoToBookshelf}
-            className="px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 relative group flex items-center gap-2"
-            style={{ color: themeColors.icon }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#4a9eff';
-            }}
-            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
               e.currentTarget.style.color = themeColors.icon;
             }}
           >
-            <Library size={16} />
-            我的书架
-          </button> */}
-        </nav>
-        <span 
-          className="hidden sm:inline mx-2"
-          style={{ color: themeColors.border }}
-        >
-          |
-        </span>
-        <button
-          className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200"
-          style={{ 
-            backgroundColor: themeColors.secondaryBg,
-            color: themeColors.icon,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = themeColors.text;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = themeColors.icon;
-          }}
-        >
-          <User size={18} />
-        </button>
+            <Home size={15} strokeWidth={2} />
+            首页
+          </button>
+        )}
       </div>
     </motion.header>
   );

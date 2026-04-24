@@ -83,6 +83,25 @@ pub fn read_book_bytes(app_handle: tauri::AppHandle, id: String) -> Result<Vec<u
 }
 
 #[tauri::command]
+pub fn save_cover(
+    app_handle: tauri::AppHandle,
+    id: String,
+    bytes: Vec<u8>,
+) -> Result<(), String> {
+    storage::write_cover(&app_handle, &id, &bytes).map(|_| ())
+}
+
+#[tauri::command]
+pub fn read_cover(app_handle: tauri::AppHandle, id: String) -> Result<Option<Vec<u8>>, String> {
+    storage::read_cover(&app_handle, &id)
+}
+
+#[tauri::command]
+pub fn delete_cover(app_handle: tauri::AppHandle, id: String) -> Result<(), String> {
+    storage::remove_cover(&app_handle, &id)
+}
+
+#[tauri::command]
 pub fn get_app_data_dir(app_handle: tauri::AppHandle) -> Result<String, String> {
     let dir = app_handle
         .path()
