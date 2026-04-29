@@ -265,6 +265,24 @@ export function Reader({
         />
       </div>
 
+      {/* 古籍版口纹饰 — 左右两侧极淡的双线 + 鱼尾，仅桌面端 */}
+      <div
+        className="hidden lg:flex fixed left-3 top-[140px] bottom-[120px] flex-col items-center justify-center gap-3 pointer-events-none z-[1]"
+        style={{ opacity: 0.22, color: themeColors.ink }}
+      >
+        <div className="w-px flex-1" style={{ background: 'currentColor' }} />
+        <span className="fish-tail-icon" />
+        <div className="w-px flex-1" style={{ background: 'currentColor' }} />
+      </div>
+      <div
+        className="hidden lg:flex fixed right-[88px] top-[140px] bottom-[120px] flex-col items-center justify-center gap-3 pointer-events-none z-[1]"
+        style={{ opacity: 0.22, color: themeColors.ink }}
+      >
+        <div className="w-px flex-1" style={{ background: 'currentColor' }} />
+        <span className="fish-tail-icon" />
+        <div className="w-px flex-1" style={{ background: 'currentColor' }} />
+      </div>
+
       {/* Desktop 导航按钮 — 玻璃圆形 */}
       <div className="hidden md:flex fixed bottom-7 left-1/2 -translate-x-1/2 items-center gap-3 z-[80]">
         <motion.button

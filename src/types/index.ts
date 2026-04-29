@@ -18,6 +18,7 @@ export interface ReaderSettings {
   fontFamily: string;
   contentWidth: number;
   theme: 'dark' | 'light' | 'sepia' | 'green' | 'darkGreen' | 'darkBlue';
+  dropCap?: boolean;       // 章节首字下沉（默认关）
 }
 
 export interface Bookmark {
@@ -72,4 +73,18 @@ export interface ThemeColors {
   accentSoft: string;  // 点缀色的柔和辉光/悬停底
   blob1: string;       // 有机 blob 装饰色 1
   blob2: string;       // 有机 blob 装饰色 2
+  seal: string;        // 朱砂印章主色（东方语境锚点）
+  sealSoft: string;    // 朱砂印章半透明（用于墨晕扩散）
+  ink: string;         // 墨色（鱼尾纹/版口纹/分割线装饰）
+  inkSoft: string;     // 墨色半透明（极淡纸纹/底纹）
 }
+
+// 主题命名映射（UI 展示用，code 仍用 ReaderSettings['theme'] 的英文 ID）
+export const THEME_NAMES: Record<ReaderSettings['theme'], string> = {
+  light: '宣纸',
+  sepia: '古籍',
+  green: '青松',
+  dark: '墨夜',
+  darkGreen: '竹影',
+  darkBlue: '夜空',
+};

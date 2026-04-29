@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
@@ -69,6 +70,7 @@ function App() {
     goToTocItem,
     applyTheme,
     applyFontSettings,
+    applyReadingDecor,
     generateLocations,
     getCurrentLocation,
   } = useReader();
@@ -80,6 +82,7 @@ function App() {
     setFontFamily,
     setContentWidth,
     setTheme,
+    setDropCap,
     addBookmark,
     removeBookmark,
     isBookmarked,
@@ -299,6 +302,11 @@ function App() {
       hasRendered.current = true;
       applyTheme(themeColors);
       applyFontSettings(settings);
+      applyReadingDecor({
+        dropCap: !!settings.dropCap,
+        sealSoft: themeColors.sealSoft,
+        seal: themeColors.seal,
+      });
 
       if (initialCfi.current) {
         await display(initialCfi.current);
@@ -308,7 +316,7 @@ function App() {
 
       setTimeout(() => { generateLocations(); }, 100);
     }
-  }, [renderTo, display, applyTheme, applyFontSettings, settings, themeColors, generateLocations]);
+  }, [renderTo, display, applyTheme, applyFontSettings, applyReadingDecor, settings, themeColors, generateLocations]);
 
   // 同步主题背景到 html/body，避免滚动回弹时露出 shadcn 的浅色底
   useEffect(() => {
@@ -329,6 +337,17 @@ function App() {
       applyFontSettings(settings);
     }
   }, [settings.fontSize, settings.lineHeight, settings.fontFamily]);
+
+  // Apply reading decor changes (dropCap toggle / theme seal color)
+  useEffect(() => {
+    if (isLoaded && hasRendered.current) {
+      applyReadingDecor({
+        dropCap: !!settings.dropCap,
+        sealSoft: themeColors.sealSoft,
+        seal: themeColors.seal,
+      });
+    }
+  }, [settings.dropCap, themeColors.sealSoft, themeColors.seal, isLoaded]);
 
   // Auto-save position on page flips. Skip progress math until locations finished
   // generating, otherwise `percentageFromCfi` returns 0 and overwrites real progress.
@@ -403,7 +422,8 @@ function App() {
       }}
     >
       <TopNav
-        title={currentView === 'reader' ? metadata.title : 'EPUB Reader'}
+        title={currentView === 'reader' ? metadata.title : '静读 · 墨韵书房'}
+        chapterTitle={currentChapterTitle}
         onToggleToc={() => setIsTocOpen(true)}
         onGoToHome={goToHome}
         onGoToBookshelf={goToBookshelf}
@@ -443,10 +463,12 @@ function App() {
         lineHeight={settings.lineHeight}
         fontFamily={settings.fontFamily}
         contentWidth={settings.contentWidth}
+        dropCap={!!settings.dropCap}
         onFontSizeChange={setFontSize}
         onLineHeightChange={setLineHeight}
         onFontFamilyChange={setFontFamily}
         onContentWidthChange={setContentWidth}
+        onDropCapChange={setDropCap}
         themeColors={themeColors}
       />
 
@@ -458,35 +480,52 @@ function App() {
         themeColors={themeColors}
       />
 
-      {currentView === 'home' ? (
-        <Home
-          readingHistory={getSortedHistory()}
-          onSelectBook={handleSelectBookFromHistory}
-          onRemoveBook={handleRemoveBook}
-          onUploadFile={handleUploadFile}
-          onGoToHome={goToHome}
-          onGoToBookshelf={goToBookshelf}
-          currentTab={currentHomeTab}
-          themeColors={themeColors}
-        />
-      ) : (
-        <>
-          <Reader
-            book={book}
-            isLoaded={isLoaded}
-            displayed={displayed}
-            onRender={handleRender}
-            onPrev={prev}
-            onNext={next}
-            themeColors={themeColors}
-            onUploadFile={handleUploadFile}
-            chapterTitle={currentChapterTitle}
-            contentWidth={settings.contentWidth}
-            navDisabled={isTocOpen || isFontSettingsOpen || isThemeSettingsOpen}
-          />
-          {isLoaded && <ProgressBar progress={progress} themeColors={themeColors} />}
-        </>
-      )}
+      {/* Home ↔ Reader 横向卷轴过渡 */}
+      <AnimatePresence mode="wait" initial={false}>
+        {currentView === 'home' ? (
+          <motion.div
+            key="home-view"
+            initial={{ x: -80, opacity: 0, filter: 'blur(6px)' }}
+            animate={{ x: 0, opacity: 1, filter: 'blur(0px)' }}
+            exit={{ x: -80, opacity: 0, filter: 'blur(6px)' }}
+            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Home
+              readingHistory={getSortedHistory()}
+              onSelectBook={handleSelectBookFromHistory}
+              onRemoveBook={handleRemoveBook}
+              onUploadFile={handleUploadFile}
+              onGoToHome={goToHome}
+              onGoToBookshelf={goToBookshelf}
+              currentTab={currentHomeTab}
+              themeColors={themeColors}
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="reader-view"
+            initial={{ x: 80, opacity: 0, filter: 'blur(6px)' }}
+            animate={{ x: 0, opacity: 1, filter: 'blur(0px)' }}
+            exit={{ x: 80, opacity: 0, filter: 'blur(6px)' }}
+            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Reader
+              book={book}
+              isLoaded={isLoaded}
+              displayed={displayed}
+              onRender={handleRender}
+              onPrev={prev}
+              onNext={next}
+              themeColors={themeColors}
+              onUploadFile={handleUploadFile}
+              chapterTitle={currentChapterTitle}
+              contentWidth={settings.contentWidth}
+              navDisabled={isTocOpen || isFontSettingsOpen || isThemeSettingsOpen}
+            />
+            {isLoaded && <ProgressBar progress={progress} themeColors={themeColors} />}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <Toaster
         position="bottom-center"

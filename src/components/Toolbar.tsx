@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useInkRipple, InkRippleLayer } from '@/components/InkRipple';
 import type { ThemeColors } from '@/types';
 
 interface ToolbarProps {
@@ -27,6 +28,95 @@ const toolbarItems = [
   { id: 'theme', icon: Palette, label: '主题', action: 'onOpenThemeSettings' as const },
   { id: 'bookmark', icon: Bookmark, label: '书签', action: 'onToggleBookmark' as const },
 ];
+
+// 单个工具按钮 + 墨晕涟漪
+function ToolButton({
+  icon: Icon,
+  label,
+  isActive,
+  themeColors,
+  onClick,
+  index,
+  side = 'left',
+}: {
+  icon: typeof List;
+  label: string;
+  isActive: boolean;
+  themeColors: ThemeColors;
+  onClick: () => void;
+  index: number;
+  side?: 'left' | 'top';
+}) {
+  const { ripples, trigger } = useInkRipple();
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <motion.button
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3, delay: 0.22 + index * 0.05 }}
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.94 }}
+          onClick={(e) => {
+            trigger(e, 1);
+            onClick();
+          }}
+          onMouseEnter={(e) => trigger(e, 0.45)}
+          aria-label={label}
+          className="relative w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-200 overflow-hidden"
+          style={{
+            color: isActive ? themeColors.accent : themeColors.icon,
+            backgroundColor: isActive ? themeColors.accentSoft : 'transparent',
+          }}
+        >
+          <InkRippleLayer ripples={ripples} color={themeColors.seal} />
+          <Icon size={18} strokeWidth={2} className="relative z-10" />
+        </motion.button>
+      </TooltipTrigger>
+      <TooltipContent
+        side={side}
+        sideOffset={10}
+        className="text-xs glass-surface"
+        style={{
+          backgroundColor: themeColors.glass,
+          color: themeColors.text,
+          border: `1px solid ${themeColors.glassBorder}`,
+          borderRadius: '10px',
+        }}
+      >
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// 翻页按钮（移动端底栏用）
+function NavButton({
+  direction,
+  themeColors,
+  onClick,
+}: {
+  direction: 'prev' | 'next';
+  themeColors: ThemeColors;
+  onClick: () => void;
+}) {
+  const { ripples, trigger } = useInkRipple();
+  const Icon = direction === 'prev' ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      onClick={(e) => {
+        trigger(e, 1);
+        onClick();
+      }}
+      aria-label={direction === 'prev' ? '上一页' : '下一页'}
+      className="relative w-10 h-10 rounded-full flex items-center justify-center overflow-hidden"
+      style={{ color: themeColors.icon }}
+    >
+      <InkRippleLayer ripples={ripples} color={themeColors.seal} />
+      <Icon size={22} className="relative z-10" />
+    </button>
+  );
+}
 
 export function Toolbar({
   onToggleToc,
@@ -61,55 +151,18 @@ export function Toolbar({
         }}
       >
         {toolbarItems.map((item, index) => {
-          const Icon = item.icon;
           const isActive = item.id === 'bookmark' && isBookmarked;
-
           return (
-            <Tooltip key={item.id}>
-              <TooltipTrigger asChild>
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.7 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: 0.22 + index * 0.05 }}
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={actions[item.action]}
-                  aria-label={item.label}
-                  className="w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-200"
-                  style={{
-                    color: isActive ? themeColors.accent : themeColors.icon,
-                    backgroundColor: isActive ? themeColors.accentSoft : 'transparent',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = themeColors.accentSoft;
-                      e.currentTarget.style.color = themeColors.accent;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = themeColors.icon;
-                    }
-                  }}
-                >
-                  <Icon size={18} strokeWidth={2} />
-                </motion.button>
-              </TooltipTrigger>
-              <TooltipContent
-                side="left"
-                sideOffset={10}
-                className="text-xs glass-surface"
-                style={{
-                  backgroundColor: themeColors.glass,
-                  color: themeColors.text,
-                  border: `1px solid ${themeColors.glassBorder}`,
-                  borderRadius: '10px',
-                }}
-              >
-                {item.label}
-              </TooltipContent>
-            </Tooltip>
+            <ToolButton
+              key={item.id}
+              icon={item.icon}
+              label={item.label}
+              isActive={isActive}
+              themeColors={themeColors}
+              onClick={actions[item.action]}
+              index={index}
+              side="left"
+            />
           );
         })}
       </motion.div>
@@ -127,44 +180,27 @@ export function Toolbar({
           boxShadow: `0 1px 0 ${themeColors.glassBorder} inset, 0 10px 30px -10px rgba(0,0,0,0.25)`,
         }}
       >
-        <button
-          onClick={onPrev}
-          aria-label="上一页"
-          className="w-10 h-10 rounded-full flex items-center justify-center"
-          style={{ color: themeColors.icon }}
-        >
-          <ChevronLeft size={22} />
-        </button>
+        <NavButton direction="prev" themeColors={themeColors} onClick={onPrev} />
 
         <div className="flex items-center gap-1">
-          {toolbarItems.map((item) => {
-            const Icon = item.icon;
+          {toolbarItems.map((item, index) => {
             const active = item.id === 'bookmark' && isBookmarked;
             return (
-              <button
+              <ToolButton
                 key={item.id}
+                icon={item.icon}
+                label={item.label}
+                isActive={active}
+                themeColors={themeColors}
                 onClick={actions[item.action]}
-                aria-label={item.label}
-                className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                style={{
-                  color: active ? themeColors.accent : themeColors.icon,
-                  backgroundColor: active ? themeColors.accentSoft : 'transparent',
-                }}
-              >
-                <Icon size={18} />
-              </button>
+                index={index}
+                side="top"
+              />
             );
           })}
         </div>
 
-        <button
-          onClick={onNext}
-          aria-label="下一页"
-          className="w-10 h-10 rounded-full flex items-center justify-center"
-          style={{ color: themeColors.icon }}
-        >
-          <ChevronRight size={22} />
-        </button>
+        <NavButton direction="next" themeColors={themeColors} onClick={onNext} />
       </motion.div>
     </TooltipProvider>
   );

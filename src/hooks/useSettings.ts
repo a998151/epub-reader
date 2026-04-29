@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS: ReaderSettings = {
   fontFamily: '"Noto Serif SC", "Source Han Serif SC", serif',
   contentWidth: 65,
   theme: 'light',
+  dropCap: false,
 };
 
 export function useSettings() {
@@ -109,6 +110,10 @@ export function useSettings() {
     saveSettings({ theme });
   }, [saveSettings]);
 
+  const setDropCap = useCallback((dropCap: boolean) => {
+    saveSettings({ dropCap });
+  }, [saveSettings]);
+
   // Bookmark management — scoped by bookId to prevent cross-book pollution
   const addBookmark = useCallback((bookId: string, cfi: string, title: string) => {
     setBookmarks((prev) => {
@@ -185,9 +190,11 @@ export function useSettings() {
     return [...readingHistory].sort((a, b) => b.lastReadAt - a.lastReadAt);
   }, [readingHistory]);
 
-  // Get theme colors — 暖中性基底 + 柔和点缀色 + 玻璃表面
+  // Get theme colors — 墨韵 · 静读：东方雅致 × 玻璃拟态
+  // 6 主题以中国传统色为骨架；seal（朱砂印）作为统一文化锚点存在于所有主题中
   const getThemeColors = useCallback(() => {
     switch (settings.theme) {
+      // 墨夜 — 墨黑 + 月光金
       case 'dark':
         return {
           background: '#1a1814',
@@ -197,25 +204,35 @@ export function useSettings() {
           icon: '#a89f8f',
           glass: 'rgba(38, 34, 30, 0.55)',
           glassBorder: 'rgba(255, 255, 255, 0.06)',
-          accent: '#d9a67e',
-          accentSoft: 'rgba(217, 166, 126, 0.14)',
-          blob1: 'rgba(217, 166, 126, 0.12)',
+          accent: '#d4a574',          // 月光金
+          accentSoft: 'rgba(212, 165, 116, 0.14)',
+          blob1: 'rgba(212, 165, 116, 0.12)',
           blob2: 'rgba(152, 116, 95, 0.10)',
+          seal: '#d04a3f',            // 暗夜中的朱砂稍亮
+          sealSoft: 'rgba(208, 74, 63, 0.16)',
+          ink: 'rgba(232, 227, 216, 0.7)',
+          inkSoft: 'rgba(232, 227, 216, 0.06)',
         };
+      // 古籍 — 做旧米黄 + 赭墨
       case 'sepia':
         return {
           background: '#f4ecd8',
           text: '#5b4636',
           secondaryBg: '#ede3ca',
           border: 'rgba(91, 70, 54, 0.14)',
-          icon: '#7a5c41', // 加深以满足 body text 4.5:1
+          icon: '#7a5c41',
           glass: 'rgba(253, 248, 232, 0.55)',
           glassBorder: 'rgba(255, 255, 255, 0.5)',
-          accent: '#8c5a3f', // 加深以保证强调色对比度 4.5:1 以上
+          accent: '#8c5a3f',          // 赭石
           accentSoft: 'rgba(140, 90, 63, 0.14)',
           blob1: 'rgba(140, 90, 63, 0.10)',
           blob2: 'rgba(196, 164, 115, 0.14)',
+          seal: '#b03a2e',            // 古籍朱砂（偏深）
+          sealSoft: 'rgba(176, 58, 46, 0.14)',
+          ink: 'rgba(91, 70, 54, 0.85)',
+          inkSoft: 'rgba(91, 70, 54, 0.08)',
         };
+      // 青松 — 松烟青绿
       case 'green':
         return {
           background: '#e8eedc',
@@ -225,11 +242,16 @@ export function useSettings() {
           icon: '#60825f',
           glass: 'rgba(240, 246, 224, 0.55)',
           glassBorder: 'rgba(255, 255, 255, 0.4)',
-          accent: '#7a9e6e',
-          accentSoft: 'rgba(122, 158, 110, 0.16)',
-          blob1: 'rgba(122, 158, 110, 0.12)',
+          accent: '#6b8e5e',          // 松绿
+          accentSoft: 'rgba(107, 142, 94, 0.16)',
+          blob1: 'rgba(107, 142, 94, 0.12)',
           blob2: 'rgba(180, 200, 145, 0.14)',
+          seal: '#c1453b',            // 朱砂
+          sealSoft: 'rgba(193, 69, 59, 0.13)',
+          ink: 'rgba(47, 74, 50, 0.85)',
+          inkSoft: 'rgba(47, 74, 50, 0.07)',
         };
+      // 竹影 — 竹林深绿
       case 'darkGreen':
         return {
           background: '#1c241c',
@@ -239,11 +261,16 @@ export function useSettings() {
           icon: '#97a897',
           glass: 'rgba(42, 52, 42, 0.55)',
           glassBorder: 'rgba(255, 255, 255, 0.06)',
-          accent: '#a8c293',
-          accentSoft: 'rgba(168, 194, 147, 0.14)',
-          blob1: 'rgba(168, 194, 147, 0.12)',
+          accent: '#8aab7d',          // 竹青
+          accentSoft: 'rgba(138, 171, 125, 0.14)',
+          blob1: 'rgba(138, 171, 125, 0.12)',
           blob2: 'rgba(120, 150, 108, 0.10)',
+          seal: '#d04a3f',
+          sealSoft: 'rgba(208, 74, 63, 0.16)',
+          ink: 'rgba(212, 220, 208, 0.7)',
+          inkSoft: 'rgba(212, 220, 208, 0.06)',
         };
+      // 夜空 — 靛蓝 + 星紫
       case 'darkBlue':
         return {
           background: '#1a1f2a',
@@ -253,11 +280,16 @@ export function useSettings() {
           icon: '#929ab0',
           glass: 'rgba(38, 44, 58, 0.55)',
           glassBorder: 'rgba(255, 255, 255, 0.06)',
-          accent: '#b5a0d0',
-          accentSoft: 'rgba(181, 160, 208, 0.14)',
-          blob1: 'rgba(181, 160, 208, 0.12)',
+          accent: '#c2acdc',          // 星紫（调亮）
+          accentSoft: 'rgba(194, 172, 220, 0.14)',
+          blob1: 'rgba(194, 172, 220, 0.12)',
           blob2: 'rgba(110, 138, 188, 0.10)',
+          seal: '#d04a3f',
+          sealSoft: 'rgba(208, 74, 63, 0.16)',
+          ink: 'rgba(208, 212, 222, 0.7)',
+          inkSoft: 'rgba(208, 212, 222, 0.06)',
         };
+      // 宣纸 — 米黄宣纸 + 朱砂印（默认）
       case 'light':
       default:
         return {
@@ -268,10 +300,14 @@ export function useSettings() {
           icon: '#6b6359',
           glass: 'rgba(255, 253, 248, 0.55)',
           glassBorder: 'rgba(255, 255, 255, 0.7)',
-          accent: '#c97b63',
-          accentSoft: 'rgba(201, 123, 99, 0.12)',
-          blob1: 'rgba(201, 123, 99, 0.14)',
+          accent: '#c1453b',          // 朱砂红（accent 与 seal 在宣纸主题中合一）
+          accentSoft: 'rgba(193, 69, 59, 0.11)',
+          blob1: 'rgba(193, 69, 59, 0.12)',
           blob2: 'rgba(230, 197, 157, 0.18)',
+          seal: '#c1453b',
+          sealSoft: 'rgba(193, 69, 59, 0.14)',
+          ink: 'rgba(45, 42, 38, 0.88)',
+          inkSoft: 'rgba(45, 42, 38, 0.07)',
         };
     }
   }, [settings.theme]);
@@ -286,6 +322,7 @@ export function useSettings() {
     setFontFamily,
     setContentWidth,
     setTheme,
+    setDropCap,
     addBookmark,
     removeBookmark,
     isBookmarked,

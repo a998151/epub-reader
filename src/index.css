@@ -108,7 +108,8 @@
 }
 
 /* ────────────────────────────────────────────────────────────
-   Organic Modernism · Soft Minimalism · Glassmorphism tokens
+   墨韵 · 静读
+   东方雅致 × 玻璃拟态 设计 token
    ──────────────────────────────────────────────────────────── */
 :root {
   /* 有机圆角尺度 */
@@ -120,24 +121,26 @@
   /* 柔和动效 */
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-gentle: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-ink: cubic-bezier(0.16, 1, 0.3, 1);  /* 墨晕扩散专用 */
   --dur-fast: 180ms;
   --dur-base: 260ms;
   --dur-slow: 420ms;
+  --dur-ink: 620ms;                            /* 墨晕扩散 */
 
   /* 玻璃拟态 */
   --glass-blur: 24px;
   --glass-saturate: 140%;
 
-  /* Z-index scale — 统一管理层级避免各组件随意使用数字 */
-  --z-progress: 60;        /* 阅读页底部进度条 */
-  --z-reader-loading: 70;  /* 阅读页加载蒙层 */
-  --z-edge: 75;            /* 阅读页边缘翻页区 */
-  --z-reader-ui: 80;       /* 阅读页翻页按钮 */
-  --z-toolbar: 90;         /* 右侧/底部工具栏 */
-  --z-chapter: 95;         /* 章节标题条（在工具栏之上？不，之下） */
-  --z-topnav: 100;         /* 顶部导航 */
-  --z-overlay: 110;        /* 浮层遮罩 */
-  --z-panel: 120;          /* 浮层面板 */
+  /* Z-index scale */
+  --z-progress: 60;
+  --z-reader-loading: 70;
+  --z-edge: 75;
+  --z-reader-ui: 80;
+  --z-toolbar: 90;
+  --z-chapter: 95;
+  --z-topnav: 100;
+  --z-overlay: 110;
+  --z-panel: 120;
 }
 
 /* 玻璃拟态实用类 */
@@ -157,6 +160,119 @@
 }
 .radius-organic-blob {
   border-radius: 42% 58% 54% 46% / 48% 44% 56% 52%;
+}
+
+/* ──────────────── 东方装饰系统 ──────────────── */
+
+/* 纸纹底层：极淡 SVG 噪点（< 4% 透明度），叠在 background 上模拟宣纸纤维 */
+.paper-texture {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.04 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 180px 180px;
+  background-repeat: repeat;
+  background-blend-mode: multiply;
+}
+
+/* 古籍版口暗纹：水平 8px 间距的极淡纵线（暗示雕版书的版心） */
+.block-print-grid {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(100% / 16 - 0.5px),
+    var(--ink-soft, rgba(0,0,0,0.025)) calc(100% / 16 - 0.5px),
+    var(--ink-soft, rgba(0,0,0,0.025)) calc(100% / 16),
+    transparent calc(100% / 16),
+    transparent 100%
+  );
+  background-size: 100% 100%;
+}
+
+/* 鱼尾纹分隔符：双线 + 中央倒三角，源自宋版书的"白鱼尾" */
+.fish-tail::before,
+.fish-tail::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  opacity: 0.35;
+}
+.fish-tail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.fish-tail-icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  position: relative;
+}
+.fish-tail-icon::before,
+.fish-tail-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  transform: translateX(-50%);
+}
+.fish-tail-icon::before {
+  top: 0;
+  border-top: 6px solid currentColor;
+  opacity: 0.55;
+}
+.fish-tail-icon::after {
+  bottom: 0;
+  border-bottom: 6px solid currentColor;
+  opacity: 0.55;
+}
+
+/* 印章浮现：先放大 + 透明，再回弹定位 + 朱砂晕开 */
+@keyframes seal-stamp {
+  0%   { transform: scale(1.6) rotate(-8deg); opacity: 0; filter: blur(4px); }
+  60%  { transform: scale(0.92) rotate(2deg);  opacity: 1; filter: blur(0); }
+  100% { transform: scale(1) rotate(0deg);     opacity: 1; filter: blur(0); }
+}
+.seal-stamp-in {
+  animation: seal-stamp 0.7s var(--ease-ink) both;
+}
+
+/* 墨晕涟漪：从中心向外扩散 + 渐隐 */
+@keyframes ink-ripple {
+  0%   { transform: scale(0); opacity: 0.45; }
+  80%  { opacity: 0.08; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.ink-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: ink-ripple var(--dur-ink) var(--ease-ink) both;
+}
+
+/* 竖排中文（用于 B2 雕版书脊） */
+.vertical-rl {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0.08em;
+}
+
+/* 雕版边框：双线（外粗内细）— 源自宋版书的版框 */
+.block-print-frame {
+  position: relative;
+  box-sizing: border-box;
+}
+.block-print-frame::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid currentColor;
+  opacity: 0.18;
+  border-radius: inherit;
+  pointer-events: none;
 }
 
 /* Base styles for EPUB reader */

@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Minus, Plus, Type } from 'lucide-react';
+import { X, Minus, Plus, Type, Sparkles } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { useOverlay } from '@/hooks/useOverlay';
 import type { ThemeColors } from '@/types';
 
@@ -11,22 +12,25 @@ interface FontSettingsProps {
   lineHeight: number;
   fontFamily: string;
   contentWidth: number;
+  dropCap: boolean;
   onFontSizeChange: (size: number) => void;
   onLineHeightChange: (height: number) => void;
   onFontFamilyChange: (family: string) => void;
   onContentWidthChange: (width: number) => void;
+  onDropCapChange: (enabled: boolean) => void;
   themeColors: ThemeColors;
 }
 
+// 每个字体配一句经典句作为视觉锚点
 const fontOptions = [
-  { label: '思源宋体', value: '"Noto Serif SC", "Source Han Serif SC", serif' },
-  { label: '思源黑体', value: '"Noto Sans SC", "Source Han Sans SC", sans-serif' },
-  { label: '霞鹜文楷', value: '"LXGWWenKaiScreen", "KaiTi", serif' },
-  { label: '朱雀仿宋', value: '"ZhuqueFangsong", "FangSong", "STFangsong", serif' },
-  { label: '方正细金陵', value: '"FZXiJinLJW", "Noto Serif SC", serif' },
-  { label: '方正颜宋', value: '"FZYanSJW", "Noto Serif SC", serif' },
-  { label: '楷体', value: '"KaiTi", "STKaiti", serif' },
-  { label: '仿宋', value: '"FangSong", "STFangsong", serif' },
+  { label: '思源宋体', value: '"Noto Serif SC", "Source Han Serif SC", serif',  preview: '上善若水' },
+  { label: '思源黑体', value: '"Noto Sans SC", "Source Han Sans SC", sans-serif', preview: '道法自然' },
+  { label: '霞鹜文楷', value: '"LXGWWenKaiScreen", "KaiTi", serif',               preview: '清风明月' },
+  { label: '朱雀仿宋', value: '"ZhuqueFangsong", "FangSong", "STFangsong", serif', preview: '行云流水' },
+  { label: '方正细金陵', value: '"FZXiJinLJW", "Noto Serif SC", serif',           preview: '云淡风轻' },
+  { label: '方正颜宋', value: '"FZYanSJW", "Noto Serif SC", serif',               preview: '风骨峥嵘' },
+  { label: '楷体', value: '"KaiTi", "STKaiti", serif',                              preview: '翰墨丹青' },
+  { label: '仿宋', value: '"FangSong", "STFangsong", serif',                        preview: '古意盎然' },
 ];
 
 function StepperButton({
@@ -68,10 +72,12 @@ export function FontSettings({
   lineHeight,
   fontFamily,
   contentWidth,
+  dropCap,
   onFontSizeChange,
   onLineHeightChange,
   onFontFamilyChange,
   onContentWidthChange,
+  onDropCapChange,
   themeColors,
 }: FontSettingsProps) {
   useOverlay(isOpen, onClose);
@@ -86,7 +92,7 @@ export function FontSettings({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[110]"
-            style={{ backgroundColor: 'rgba(20, 16, 12, 0.28)', backdropFilter: 'blur(2px)' }}
+            style={{ backgroundColor: 'rgba(20, 16, 12, 0.32)', backdropFilter: 'blur(3px)' }}
             onClick={onClose}
           />
 
@@ -94,30 +100,31 @@ export function FontSettings({
             initial={{ opacity: 0, scale: 0.96, x: 12 }}
             animate={{ opacity: 1, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.96, x: 12 }}
-            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed right-24 top-1/2 w-[296px] z-[120] overflow-hidden glass-surface-strong"
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed right-24 top-1/2 w-[360px] max-h-[82vh] z-[120] overflow-hidden glass-surface-strong flex flex-col"
             style={{
               y: '-50%',
               backgroundColor: themeColors.glass,
               border: `1px solid ${themeColors.glassBorder}`,
-              borderRadius: '22px',
-              boxShadow: `0 1px 0 ${themeColors.glassBorder} inset, 0 20px 50px -20px rgba(0,0,0,0.4)`,
+              borderRadius: '24px',
+              boxShadow: `0 1px 0 ${themeColors.glassBorder} inset, 0 24px 60px -22px rgba(0,0,0,0.45)`,
               ['--accent-color' as string]: themeColors.accent,
             }}
           >
+            {/* Header */}
             <div
-              className="flex items-center justify-between px-5 py-3.5"
+              className="flex items-center justify-between px-5 py-3.5 flex-shrink-0"
               style={{ borderBottom: `1px solid ${themeColors.border}` }}
             >
               <div className="flex items-center gap-2.5">
                 <div
-                  className="w-6 h-6 flex items-center justify-center"
+                  className="w-7 h-7 flex items-center justify-center"
                   style={{
                     borderRadius: '42% 58% 54% 46% / 48% 44% 56% 52%',
                     backgroundColor: themeColors.accentSoft,
                   }}
                 >
-                  <Type size={13} style={{ color: themeColors.accent }} strokeWidth={2.2} />
+                  <Type size={14} style={{ color: themeColors.accent }} strokeWidth={2.2} />
                 </div>
                 <span
                   className="text-[14px] tracking-tight"
@@ -127,7 +134,7 @@ export function FontSettings({
                     fontWeight: 600,
                   }}
                 >
-                  字体设置
+                  字体 · 排印
                 </span>
               </div>
               <button
@@ -148,16 +155,16 @@ export function FontSettings({
               </button>
             </div>
 
-            <div className="p-5 space-y-6">
+            <div className="p-5 space-y-5 overflow-y-auto">
               {/* Font Size */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[13px]" style={{ color: themeColors.icon }}>字号</span>
+                  <span className="text-[12px] tracking-wider" style={{ color: themeColors.icon }}>字号</span>
                   <span
                     className="text-[13px] font-medium tabular-nums"
                     style={{ color: themeColors.text }}
                   >
-                    {fontSize}px
+                    {fontSize}<span className="text-[10px] ml-0.5 opacity-60">px</span>
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -187,7 +194,7 @@ export function FontSettings({
               {/* Line Height */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[13px]" style={{ color: themeColors.icon }}>行间距</span>
+                  <span className="text-[12px] tracking-wider" style={{ color: themeColors.icon }}>行间距</span>
                   <span
                     className="text-[13px] font-medium tabular-nums"
                     style={{ color: themeColors.text }}
@@ -207,12 +214,12 @@ export function FontSettings({
               {/* Content Width */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[13px]" style={{ color: themeColors.icon }}>内容宽度</span>
+                  <span className="text-[12px] tracking-wider" style={{ color: themeColors.icon }}>版心宽度</span>
                   <span
                     className="text-[13px] font-medium tabular-nums"
                     style={{ color: themeColors.text }}
                   >
-                    {contentWidth}%
+                    {contentWidth}<span className="text-[10px] ml-0.5 opacity-60">%</span>
                   </span>
                 </div>
                 <Slider
@@ -224,28 +231,71 @@ export function FontSettings({
                 />
               </div>
 
-              {/* Font Family */}
+              {/* 首字下沉开关 */}
+              <div
+                className="flex items-center justify-between p-3 rounded-2xl"
+                style={{
+                  backgroundColor: themeColors.secondaryBg,
+                  border: `1px solid ${themeColors.border}`,
+                }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Sparkles size={14} style={{ color: themeColors.seal }} strokeWidth={2.2} />
+                  <div className="flex flex-col">
+                    <span
+                      className="text-[13px] tracking-tight"
+                      style={{ color: themeColors.text, fontWeight: 500 }}
+                    >
+                      首字下沉
+                    </span>
+                    <span
+                      className="text-[10px]"
+                      style={{ color: themeColors.icon }}
+                    >
+                      章节首字大字、朱砂红
+                    </span>
+                  </div>
+                </div>
+                <Switch
+                  checked={dropCap}
+                  onCheckedChange={onDropCapChange}
+                  style={{
+                    backgroundColor: dropCap ? themeColors.seal : undefined,
+                  }}
+                />
+              </div>
+
+              {/* 鱼尾纹分隔 */}
+              <div className="fish-tail" style={{ color: themeColors.ink, opacity: 0.7 }}>
+                <span className="fish-tail-icon" />
+              </div>
+
+              {/* Font Family — 书法风格预览卡 */}
               <div className="space-y-2.5">
                 <span
-                  className="text-[13px] block"
+                  className="text-[12px] tracking-wider block"
                   style={{ color: themeColors.icon }}
                 >
                   字体
                 </span>
                 <div className="grid grid-cols-2 gap-2">
-                  {fontOptions.map((font) => {
+                  {fontOptions.map((font, i) => {
                     const active = fontFamily === font.value;
                     return (
-                      <button
+                      <motion.button
                         key={font.value}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, delay: i * 0.03 }}
+                        whileHover={{ y: -2 }}
+                        whileTap={{ scale: 0.97 }}
                         onClick={() => onFontFamilyChange(font.value)}
-                        className="px-3 py-2 rounded-xl text-[13px] transition-all duration-200"
+                        className="flex flex-col items-center justify-center px-2 py-3 rounded-xl transition-all duration-200"
                         style={{
-                          color: active ? themeColors.accent : themeColors.text,
-                          backgroundColor: active ? themeColors.accentSoft : 'transparent',
-                          border: `1px solid ${active ? themeColors.accent + '40' : themeColors.border}`,
-                          fontFamily: font.value,
-                          fontWeight: active ? 500 : 400,
+                          backgroundColor: active ? themeColors.accentSoft : themeColors.secondaryBg,
+                          border: `1.5px solid ${active ? themeColors.accent : themeColors.border}`,
+                          color: themeColors.text,
+                          minHeight: 64,
                         }}
                         onMouseEnter={(e) => {
                           if (!active) {
@@ -254,12 +304,32 @@ export function FontSettings({
                         }}
                         onMouseLeave={(e) => {
                           if (!active) {
-                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.backgroundColor = themeColors.secondaryBg;
                           }
                         }}
                       >
-                        {font.label}
-                      </button>
+                        {/* 经典句预览（书法风格） */}
+                        <span
+                          className="text-[18px] tracking-[0.05em] leading-tight"
+                          style={{
+                            fontFamily: font.value,
+                            color: active ? themeColors.accent : themeColors.text,
+                            fontWeight: active ? 600 : 500,
+                          }}
+                        >
+                          {font.preview}
+                        </span>
+                        {/* 字体名小标 */}
+                        <span
+                          className="text-[10px] mt-1.5 tracking-wider"
+                          style={{
+                            color: themeColors.icon,
+                            opacity: active ? 1 : 0.7,
+                          }}
+                        >
+                          {font.label}
+                        </span>
+                      </motion.button>
                     );
                   })}
                 </div>

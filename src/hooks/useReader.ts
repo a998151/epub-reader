@@ -11,10 +11,40 @@ function safeDestroy(target: { destroy?: () => void } | null | undefined) {
   try { target.destroy?.(); } catch { /* already destroyed */ }
 }
 
+// 阅读装饰 CSS — 朱砂 selection + 可选首字下沉
+function buildDecorCss(decor: { dropCap: boolean; sealSoft: string; seal: string }): string {
+  const lines = [
+    `body ::selection { background-color: ${decor.sealSoft}; color: inherit; text-shadow: none; }`,
+    `body ::-moz-selection { background-color: ${decor.sealSoft}; color: inherit; text-shadow: none; }`,
+  ];
+  if (decor.dropCap) {
+    // 章节首字下沉：第一段第一个字大字 + 朱砂色 + 衬线
+    // 选择器避开页眉/标题等首段，只取 body 直接子级或常见 wrapper 中的首段
+    lines.push(`
+      body > p:first-of-type:not(:empty)::first-letter,
+      body > div > p:first-of-type:not(:empty)::first-letter,
+      body > section > p:first-of-type:not(:empty)::first-letter,
+      body > article > p:first-of-type:not(:empty)::first-letter {
+        font-size: 3.6em;
+        float: left;
+        line-height: 0.92;
+        font-weight: 700;
+        margin: 0.04em 0.12em -0.05em 0;
+        color: ${decor.seal};
+        font-family: "Noto Serif SC", "Source Han Serif SC", serif;
+        text-shadow: 0 1px 0 rgba(0,0,0,0.04);
+      }
+    `);
+  }
+  return lines.join('\n');
+}
+
 export function useReader() {
   const bookRef = useRef<Book | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const fontSettingsRef = useRef<{ fontSize: number; lineHeight: number; fontFamily: string } | null>(null);
+  // 阅读装饰：selection 朱砂色 + 章节首字下沉（可关）
+  const decorRef = useRef<{ dropCap: boolean; sealSoft: string; seal: string } | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [toc, setToc] = useState<TocItem[]>([]);
   const [metadata, setMetadata] = useState<BookMetadata>({ title: '' });
@@ -108,16 +138,28 @@ export function useReader() {
         doc.head?.appendChild(style);
       }
 
-      // Apply font-family via CSS rule that covers all child elements,
-      // not just <body>, because EPUB CSS often sets font-family on <p>/<span> etc.
+      // Apply font-family AND line-height via CSS rules covering all child elements.
+      // body alone is not enough — EPUB CSS often sets font-family/line-height directly
+      // on <p>/<span> etc. Inherited values lose to direct matches even with !important,
+      // so we must target descendants explicitly.
       if (fontSettingsRef.current) {
-        const { fontFamily } = fontSettingsRef.current;
+        const { fontFamily, lineHeight } = fontSettingsRef.current;
         const existingFontStyle = doc.getElementById('epub-font-override');
         if (existingFontStyle) existingFontStyle.remove();
         const fontStyle = doc.createElement('style');
         fontStyle.id = 'epub-font-override';
-        fontStyle.textContent = `body, body * { font-family: ${fontFamily}; }`;
+        fontStyle.textContent = `body, body * { font-family: ${fontFamily} !important; line-height: ${lineHeight} !important; }`;
         doc.head?.appendChild(fontStyle);
+      }
+
+      // 阅读装饰：朱砂 selection + 可选首字下沉
+      if (decorRef.current) {
+        const existingDecor = doc.getElementById('epub-reading-decor');
+        if (existingDecor) existingDecor.remove();
+        const decorStyle = doc.createElement('style');
+        decorStyle.id = 'epub-reading-decor';
+        decorStyle.textContent = buildDecorCss(decorRef.current);
+        doc.head?.appendChild(decorStyle);
       }
     });
 
@@ -240,8 +282,10 @@ export function useReader() {
       // Store settings for future contents (applied via hooks.content.register)
       fontSettingsRef.current = settings;
 
-      // Inject a CSS rule covering all child elements, not just <body>,
-      // because EPUB CSS often sets font-family on <p>/<span> etc.
+      // Inject a CSS rule covering all child elements, not just <body>.
+      // EPUB CSS often sets font-family/line-height directly on <p>/<span> etc;
+      // inherited values lose to direct matches even with !important, so we must
+      // target descendants explicitly.
       const contents = renditionRef.current.getContents() as unknown as Contents[];
       contents.forEach((content: Contents) => {
         const doc = content.document;
@@ -250,11 +294,33 @@ export function useReader() {
           if (existing) existing.remove();
           const style = doc.createElement('style');
           style.id = 'epub-font-override';
-          style.textContent = `body, body * { font-family: ${settings.fontFamily}; }`;
+          style.textContent = `body, body * { font-family: ${settings.fontFamily} !important; line-height: ${settings.lineHeight} !important; }`;
           doc.head?.appendChild(style);
         }
       });
     }
+  }, []);
+
+  // Apply reading decor — 朱砂 selection + 可选首字下沉
+  const applyReadingDecor = useCallback((decor: {
+    dropCap: boolean;
+    sealSoft: string;
+    seal: string;
+  }) => {
+    decorRef.current = decor;
+    if (!renditionRef.current) return;
+    const contents = renditionRef.current.getContents() as unknown as Contents[];
+    contents.forEach((content: Contents) => {
+      const doc = content.document;
+      if (doc) {
+        const existing = doc.getElementById('epub-reading-decor');
+        if (existing) existing.remove();
+        const style = doc.createElement('style');
+        style.id = 'epub-reading-decor';
+        style.textContent = buildDecorCss(decor);
+        doc.head?.appendChild(style);
+      }
+    });
   }, []);
 
   // Generate locations for progress (with smaller chunk for faster generation)
@@ -322,6 +388,7 @@ export function useReader() {
     goToTocItem,
     applyTheme,
     applyFontSettings,
+    applyReadingDecor,
     generateLocations,
     getCurrentLocation,
   };
