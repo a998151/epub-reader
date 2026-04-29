@@ -1,7 +1,7 @@
 {
   "name": "my-app",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "npm run tauri:build:clean",
+    "tauri:build:clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('src-tauri/target/release/bundle',{recursive:true,force:true})\" && cargo clean --manifest-path src-tauri/Cargo.toml -p epub-reader && tauri build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

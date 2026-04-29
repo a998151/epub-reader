@@ -40,6 +40,26 @@ export interface ReadingHistory {
   cfi?: string;
 }
 
+export type AnnotationColor = 'yellow' | 'green' | 'blue' | 'pink' | 'underline';
+
+export interface Annotation {
+  id: string;
+  bookId: string;
+  cfi: string;
+  text: string;
+  color: AnnotationColor;
+  style: 'highlight' | 'underline';
+  note?: string;
+  chapterTitle?: string;
+  createdAt: number;
+}
+
+export interface ReadingSession {
+  bookId: string;
+  startAt: number;
+  durationMs: number;
+}
+
 export interface ThemeColors {
   background: string;
   text: string;
