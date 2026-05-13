@@ -9,8 +9,6 @@
 | ![首页](public/images/1.png) | ![书架](public/images/2.png) |
 | ![阅读器](public/images/3.png) | ![字体设置](public/images/4.png) |
 
-![主题设置](public/images/5.png)
-
 ---
 
 ## 功能特性

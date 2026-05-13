@@ -1,5 +1,7 @@
-import { List, Home as HomeIcon, ChevronRight } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { List, Home as HomeIcon, ChevronRight, Minus, Square, X, Maximize2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { ThemeColors } from '@/types';
 
 interface TopNavProps {
@@ -21,13 +23,28 @@ export function TopNav({
   themeColors,
 }: TopNavProps) {
   const inReader = currentView === 'reader';
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  // 监听最大化状态变化
+  useEffect(() => {
+    const win = getCurrentWindow();
+    win.isMaximized().then(setIsMaximized);
+    const unlisten = win.onResized(() => {
+      win.isMaximized().then(setIsMaximized);
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  const handleMinimize  = useCallback(() => getCurrentWindow().minimize(), []);
+  const handleMaximize  = useCallback(() => getCurrentWindow().toggleMaximize(), []);
+  const handleClose     = useCallback(() => getCurrentWindow().close(), []);
 
   return (
     <motion.header
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed top-0 left-0 right-0 h-[64px] z-[100] px-5 lg:px-9 flex items-center justify-between glass-surface"
+      className="fixed top-0 left-0 right-0 h-[64px] z-[100] px-5 lg:px-9 flex items-center justify-between glass-surface select-none"
       style={{
         backgroundColor: themeColors.glass,
         borderBottom: `1px solid ${themeColors.glassBorder}`,
@@ -35,7 +52,7 @@ export function TopNav({
       }}
     >
       {/* Left — 印章 logo + 品牌 + 章节面包屑 */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="relative z-[1] flex items-center gap-3 min-w-0">
         <motion.button
           whileHover={{ rotate: -6, scale: 1.06 }}
           whileTap={{ scale: 0.94 }}
@@ -105,12 +122,15 @@ export function TopNav({
         </div>
       </div>
 
-      {/* Right — Reader 模式显示返回首页按钮 */}
-      <div className="flex items-center gap-1">
+      {/* 拖动层 — 铺满整个 header，z-0 在最下层，按钮/文字在 z-1 之上自然不受影响 */}
+      <div data-tauri-drag-region className="absolute inset-0 z-[0]" />
+
+      {/* Right — 首页按钮 + 窗口控制 */}
+      <div className="relative z-[1] flex items-center gap-1">
         {inReader && (
           <button
             onClick={onGoToHome}
-            className="px-3.5 py-2 text-sm rounded-full transition-all duration-200 flex items-center gap-2"
+            className="px-3.5 py-2 text-sm rounded-full transition-all duration-200 flex items-center gap-2 mr-2"
             style={{ color: themeColors.icon }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = themeColors.accentSoft;
@@ -125,6 +145,61 @@ export function TopNav({
             首页
           </button>
         )}
+
+        {/* 分隔线 */}
+        <div className="w-px h-4 mx-1" style={{ backgroundColor: themeColors.border }} />
+
+        {/* 最小化 */}
+        <button
+          onClick={handleMinimize}
+          aria-label="最小化"
+          className="w-8 h-8 rounded-md flex items-center justify-center transition-all duration-150"
+          style={{ color: themeColors.icon }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = themeColors.secondaryBg;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          <Minus size={14} strokeWidth={2} />
+        </button>
+
+        {/* 最大化 / 还原 */}
+        <button
+          onClick={handleMaximize}
+          aria-label={isMaximized ? '还原' : '最大化'}
+          className="w-8 h-8 rounded-md flex items-center justify-center transition-all duration-150"
+          style={{ color: themeColors.icon }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = themeColors.secondaryBg;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          {isMaximized
+            ? <Square size={12} strokeWidth={2} />
+            : <Maximize2 size={13} strokeWidth={2} />}
+        </button>
+
+        {/* 关闭 */}
+        <button
+          onClick={handleClose}
+          aria-label="关闭"
+          className="w-8 h-8 rounded-md flex items-center justify-center transition-all duration-150"
+          style={{ color: themeColors.icon }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#e81123';
+            e.currentTarget.style.color = '#ffffff';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = themeColors.icon;
+          }}
+        >
+          <X size={14} strokeWidth={2} />
+        </button>
       </div>
     </motion.header>
   );
