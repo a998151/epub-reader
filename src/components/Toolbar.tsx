@@ -138,11 +138,13 @@ export function Toolbar({
   return (
     <TooltipProvider delayDuration={160}>
       {/* Desktop 右侧玻璃胶囊 */}
+      {/* 外层 div：top-[64px] bottom-0 负责在内容区内垂直居中，右侧固定 */}
+      <div className="fixed right-5 lg:right-7 top-[64px] bottom-0 z-[90] hidden md:flex items-center">
       <motion.div
         initial={{ opacity: 0, x: 18 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.5, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-        className="fixed right-5 lg:right-7 top-1/2 -translate-y-1/2 z-[90] hidden md:flex flex-col gap-1.5 p-1.5 glass-surface"
+        className="flex flex-col gap-1.5 p-1.5 glass-surface"
         style={{
           backgroundColor: themeColors.glass,
           border: `1px solid ${themeColors.glassBorder}`,
@@ -166,6 +168,7 @@ export function Toolbar({
           );
         })}
       </motion.div>
+      </div>
 
       {/* Mobile 底部玻璃工具条 */}
       <motion.div

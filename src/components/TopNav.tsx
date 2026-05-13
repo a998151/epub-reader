@@ -1,6 +1,5 @@
 import { List, Home as HomeIcon, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Seal } from '@/components/Seal';
 import type { ThemeColors } from '@/types';
 
 interface TopNavProps {
@@ -47,7 +46,12 @@ export function TopNav({
           className="flex-shrink-0"
           style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
         >
-          <Seal char="阅" size={36} themeColors={themeColors} animate={false} rotate={-3} />
+          <img
+            src="/images/logo.png"
+            alt="静读"
+            style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }}
+            draggable={false}
+          />
         </motion.button>
 
         <div className="flex items-center gap-2 min-w-0">

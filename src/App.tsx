@@ -415,7 +415,7 @@ function App() {
 
   return (
     <div
-      className="min-h-screen"
+      className="h-screen overflow-hidden"
       style={{
         backgroundColor: themeColors.background,
         ['--accent-color' as string]: themeColors.accent,
@@ -521,6 +521,8 @@ function App() {
               chapterTitle={currentChapterTitle}
               contentWidth={settings.contentWidth}
               navDisabled={isTocOpen || isFontSettingsOpen || isThemeSettingsOpen}
+              progress={progress}
+              bookTitle={metadata.title}
             />
             {isLoaded && <ProgressBar progress={progress} themeColors={themeColors} />}
           </motion.div>

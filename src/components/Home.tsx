@@ -407,7 +407,7 @@ export function Home({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
-      className="min-h-screen pt-[84px] pb-16 px-5 sm:px-8 lg:px-12 relative"
+      className="h-screen overflow-y-auto pt-[84px] pb-16 px-5 sm:px-8 lg:px-12 relative"
       style={{
         backgroundColor: themeColors.background,
         // 让 .block-print-grid 中的 var(--ink-soft) 拿到正确值

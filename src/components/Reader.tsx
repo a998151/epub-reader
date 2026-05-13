@@ -1,8 +1,9 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Upload, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Upload, BookOpen, BookMarked } from 'lucide-react';
 import type { Book } from 'epubjs';
 import type { ThemeColors } from '@/types';
+import { ReaderDecor } from '@/components/ReaderDecor';
 
 interface ReaderProps {
   book: Book | null;
@@ -16,6 +17,8 @@ interface ReaderProps {
   chapterTitle?: string;
   contentWidth?: number;
   navDisabled?: boolean;
+  progress?: number;
+  bookTitle?: string;
 }
 
 export function Reader({
@@ -30,6 +33,8 @@ export function Reader({
   chapterTitle,
   contentWidth = 100,
   navDisabled = false,
+  progress,
+  bookTitle,
 }: ReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -113,7 +118,7 @@ export function Reader({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden"
+        className="h-screen flex items-center justify-center px-4 relative overflow-hidden"
         style={{ backgroundColor: themeColors.background }}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -206,7 +211,7 @@ export function Reader({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="min-h-screen relative"
+      className="h-screen overflow-hidden relative"
       style={{ backgroundColor: themeColors.background }}
     >
       {/* Loading overlay — driven by rendition 'displayed' event rather than a fixed timeout */}
@@ -234,20 +239,44 @@ export function Reader({
         )}
       </AnimatePresence>
 
-      {/* Chapter title bar */}
+      {/* Chapter title bar — 带装饰的章节标题条 */}
       {chapterTitle && (
         <motion.div
+          key={chapterTitle}
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed top-[64px] left-0 right-0 z-[90] px-5 py-2 text-center text-[13px] truncate glass-surface"
+          className="fixed top-[64px] left-0 right-0 z-[90] flex items-center justify-center gap-2.5 px-6 py-2 glass-surface"
           style={{
             backgroundColor: themeColors.glass,
-            color: themeColors.icon,
             borderBottom: `1px solid ${themeColors.border}`,
           }}
         >
-          {chapterTitle}
+          {/* 左侧装饰 */}
+          <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0">
+            <div className="h-px w-8 md:w-16" style={{ background: `linear-gradient(90deg, transparent, ${themeColors.seal}55)` }} />
+            <div className="w-1 h-1 rounded-full" style={{ backgroundColor: themeColors.seal, opacity: 0.55 }} />
+          </div>
+
+          <div className="flex items-center gap-2 min-w-0">
+            <BookMarked size={11} className="flex-shrink-0" style={{ color: themeColors.seal, opacity: 0.7 }} />
+            <span
+              className="text-[12px] tracking-widest truncate max-w-[280px] md:max-w-[480px]"
+              style={{
+                color: themeColors.icon,
+                fontFamily: '"Noto Serif SC", "Source Han Serif SC", serif',
+                letterSpacing: '0.08em',
+              }}
+            >
+              {chapterTitle}
+            </span>
+          </div>
+
+          {/* 右侧装饰 */}
+          <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0">
+            <div className="w-1 h-1 rounded-full" style={{ backgroundColor: themeColors.seal, opacity: 0.55 }} />
+            <div className="h-px w-8 md:w-16" style={{ background: `linear-gradient(90deg, ${themeColors.seal}55, transparent)` }} />
+          </div>
         </motion.div>
       )}
 
@@ -258,75 +287,139 @@ export function Reader({
         className={`fixed inset-0 pb-[76px] md:pb-[84px] md:pr-[72px] ${chapterTitle ? 'pt-[104px]' : 'pt-[68px]'}`}
         style={{ backgroundColor: themeColors.background }}
       >
+        {/* 书页纸张阴影框 — 给内容区域增加立体感 */}
+        <div
+          className="absolute inset-0 pointer-events-none z-[2]"
+          style={{
+            boxShadow: `inset 60px 0 80px -60px ${themeColors.inkSoft}, inset -60px 0 80px -60px ${themeColors.inkSoft}`,
+          }}
+        />
         <div
           ref={containerRef}
-          className="h-full mx-auto px-4 md:px-8 lg:px-16"
+          className="h-full mx-auto px-4 md:px-8 lg:px-16 relative"
           style={{ width: `${contentWidth}%` }}
         />
       </div>
 
-      {/* 古籍版口纹饰 — 左右两侧极淡的双线 + 鱼尾，仅桌面端 */}
-      <div
-        className="hidden lg:flex fixed left-3 top-[140px] bottom-[120px] flex-col items-center justify-center gap-3 pointer-events-none z-[1]"
-        style={{ opacity: 0.22, color: themeColors.ink }}
-      >
-        <div className="w-px flex-1" style={{ background: 'currentColor' }} />
-        <span className="fish-tail-icon" />
-        <div className="w-px flex-1" style={{ background: 'currentColor' }} />
-      </div>
-      <div
-        className="hidden lg:flex fixed right-[88px] top-[140px] bottom-[120px] flex-col items-center justify-center gap-3 pointer-events-none z-[1]"
-        style={{ opacity: 0.22, color: themeColors.ink }}
-      >
-        <div className="w-px flex-1" style={{ background: 'currentColor' }} />
-        <span className="fish-tail-icon" />
-        <div className="w-px flex-1" style={{ background: 'currentColor' }} />
-      </div>
+      {/* 阅读区域装饰层 — 纸纹 / 版栏 / 花括号 / 光晕 */}
+      <ReaderDecor
+        themeColors={themeColors}
+        chapterTitle={chapterTitle}
+        bookTitle={bookTitle}
+      />
 
-      {/* Desktop 导航按钮 — 玻璃圆形 */}
-      <div className="hidden md:flex fixed bottom-7 left-1/2 -translate-x-1/2 items-center gap-3 z-[80]">
-        <motion.button
-          whileHover={{ scale: 1.06 }}
-          whileTap={{ scale: 0.94 }}
-          onClick={onPrev}
-          aria-label="上一页"
-          className="w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 glass-surface"
+      {/* Desktop 导航栏 — 含章节 + 进度信息的胶囊导航 */}
+      {/* 外层 div 负责定位+居中：左边到右侧工具栏起点，用 justify-center 实现真正居中 */}
+      <div className="hidden md:flex fixed bottom-8 left-0 right-[72px] justify-center z-[80]">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+        >
+        <div
+          className="flex items-center glass-surface"
           style={{
             backgroundColor: themeColors.glass,
             border: `1px solid ${themeColors.glassBorder}`,
-            color: themeColors.icon,
-            boxShadow: `0 1px 0 ${themeColors.glassBorder} inset, 0 8px 24px -10px rgba(0,0,0,0.2)`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = themeColors.accent;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = themeColors.icon;
+            borderRadius: '999px',
+            boxShadow: `0 1px 0 ${themeColors.glassBorder} inset, 0 10px 36px -14px rgba(0,0,0,0.28)`,
+            overflow: 'hidden',
           }}
         >
-          <ChevronLeft size={22} strokeWidth={2.1} />
-        </motion.button>
-        <motion.button
-          whileHover={{ scale: 1.06 }}
-          whileTap={{ scale: 0.94 }}
-          onClick={onNext}
-          aria-label="下一页"
-          className="w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 glass-surface"
-          style={{
-            backgroundColor: themeColors.glass,
-            border: `1px solid ${themeColors.glassBorder}`,
-            color: themeColors.icon,
-            boxShadow: `0 1px 0 ${themeColors.glassBorder} inset, 0 8px 24px -10px rgba(0,0,0,0.2)`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = themeColors.accent;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = themeColors.icon;
-          }}
-        >
-          <ChevronRight size={22} strokeWidth={2.1} />
-        </motion.button>
+          {/* 上一页 */}
+          <motion.button
+            whileTap={{ scale: 0.93 }}
+            onClick={onPrev}
+            aria-label="上一页"
+            className="h-11 px-4 flex items-center gap-1.5 transition-colors duration-200"
+            style={{ color: themeColors.icon }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = themeColors.accentSoft;
+              e.currentTarget.style.color = themeColors.accent;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = themeColors.icon;
+            }}
+          >
+            <ChevronLeft size={17} strokeWidth={2.2} />
+            <span className="text-[12px] hidden lg:block font-medium">上一页</span>
+          </motion.button>
+
+          {/* 分隔线 */}
+          <div className="w-px h-5 flex-shrink-0" style={{ backgroundColor: themeColors.border }} />
+
+          {/* 中间信息区 */}
+          <div className="px-4 h-11 flex items-center gap-2.5 min-w-0">
+            {/* 章节名 */}
+            {chapterTitle ? (
+              <span
+                className="text-[12px] max-w-[120px] lg:max-w-[220px] truncate"
+                style={{
+                  color: themeColors.text,
+                  fontFamily: '"Noto Serif SC", serif',
+                  opacity: 0.85,
+                }}
+              >
+                {chapterTitle}
+              </span>
+            ) : (
+              <BookOpen size={14} style={{ color: themeColors.icon }} />
+            )}
+
+            {/* 进度 */}
+            {progress !== undefined && (
+              <>
+                <div className="w-px h-3 flex-shrink-0" style={{ backgroundColor: themeColors.border }} />
+                {/* 小进度条 */}
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className="w-16 h-1 rounded-full overflow-hidden"
+                    style={{ backgroundColor: themeColors.inkSoft }}
+                  >
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ background: `linear-gradient(90deg, ${themeColors.accent}, ${themeColors.seal})` }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progress}%` }}
+                      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                    />
+                  </div>
+                  <span
+                    className="text-[11px] tabular-nums font-semibold flex-shrink-0"
+                    style={{ color: themeColors.accent }}
+                  >
+                    {progress}%
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* 分隔线 */}
+          <div className="w-px h-5 flex-shrink-0" style={{ backgroundColor: themeColors.border }} />
+
+          {/* 下一页 */}
+          <motion.button
+            whileTap={{ scale: 0.93 }}
+            onClick={onNext}
+            aria-label="下一页"
+            className="h-11 px-4 flex items-center gap-1.5 transition-colors duration-200"
+            style={{ color: themeColors.icon }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = themeColors.accentSoft;
+              e.currentTarget.style.color = themeColors.accent;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = themeColors.icon;
+            }}
+          >
+            <span className="text-[12px] hidden lg:block font-medium">下一页</span>
+            <ChevronRight size={17} strokeWidth={2.2} />
+          </motion.button>
+        </div>
+        </motion.div>
       </div>
 
       {/* 边缘点击区 */}

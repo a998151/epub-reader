@@ -276,8 +276,15 @@
 }
 
 /* Base styles for EPUB reader */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
 #root {
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* 低优先级：respect reduced-motion */
