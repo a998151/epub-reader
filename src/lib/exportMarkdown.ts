@@ -10,13 +10,12 @@ function formatDate(ts: number): string {
   });
 }
 
-function colorLabel(color: Annotation['color']): string {
-  switch (color) {
-    case 'yellow': return '黄';
-    case 'green': return '绿';
-    case 'blue': return '蓝';
-    case 'pink': return '粉';
-    case 'underline': return '下划线';
+function styleLabel(style: Annotation['style']): string {
+  switch (style) {
+    case 'mark': return '马克笔';
+    case 'wavy': return '波浪线';
+    case 'line': return '直线';
+    default: return '标注';
   }
 }
 
@@ -50,12 +49,9 @@ export function buildMarkdown(
       // 时间升序
       items.sort((a, b) => a.createdAt - b.createdAt);
       for (const a of items) {
-        const badge = a.style === 'underline' ? '_' : `【${colorLabel(a.color)}】`;
+        const badge = `【${styleLabel(a.style)}】`;
         const text = a.text.trim().replace(/\n+/g, ' ');
         lines.push(`- ${badge} ${text}`);
-        if (a.note) {
-          lines.push(`  > 💭 ${a.note.trim().replace(/\n+/g, '  \n  > ')}`);
-        }
         lines.push(`  <sub>${formatDate(a.createdAt)}</sub>`);
         lines.push('');
       }

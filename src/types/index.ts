@@ -43,16 +43,24 @@ export interface ReadingHistory {
 
 export type AnnotationColor = 'yellow' | 'green' | 'blue' | 'pink' | 'underline';
 
+/** 用户可选的标注样式 */
+export type AnnotationStyle = 'mark' | 'wavy' | 'line';
+
 export interface Annotation {
   id: string;
   bookId: string;
   cfi: string;
   text: string;
-  color: AnnotationColor;
-  style: 'highlight' | 'underline';
-  note?: string;
+  style: AnnotationStyle;
   chapterTitle?: string;
   createdAt: number;
+}
+
+/** 选区信息（视口坐标） */
+export interface SelectionInfo {
+  cfiRange: string;
+  text: string;
+  rect: { x: number; y: number; width: number; height: number };
 }
 
 export interface ReadingSession {
